@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/getmilpa/orchestrator/compare/v0.1.0...v0.2.0) (2026-07-09)
+
+
+### Features
+
+* recursive composition — the subprocess state ([0c8826b](https://github.com/getmilpa/orchestrator/commit/0c8826bb83ceb0fb0aa68781e1d0e8e604f21ba7))
+
+
+### Miscellaneous Chores
+
+* release 0.2.0 ([64e1f0f](https://github.com/getmilpa/orchestrator/commit/64e1f0f06bea11f22a8fdf215b2e3fc47bfc5420))
+
 ## 0.1.0 (2026-07-09)
 
 
