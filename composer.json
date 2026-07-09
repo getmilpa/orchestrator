@@ -1,0 +1,33 @@
+{
+  "name": "milpa/orchestrator",
+  "description": "Generic event-sourced process engine for the Milpa PHP framework: process definitions composed from milpa/workflow states/transitions/gates, a pure reducer folding an EventStoreInterface log into process state, an auto-advancing runner, and human-gate decision surfaces via milpa/live.",
+  "type": "library",
+  "license": "Apache-2.0",
+  "require": {
+    "php": ">=8.3",
+    "milpa/core": "^0.5",
+    "milpa/event-store": "^0.1",
+    "milpa/workflow": "^0.1.2",
+    "milpa/events": "^0.2",
+    "milpa/live": "^0.1",
+    "milpa/tool-runtime": "^0.5.1"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.5",
+    "phpstan/phpstan": "^2.1",
+    "phpstan/phpdoc-parser": "^2.3",
+    "friendsofphp/php-cs-fixer": "^3.65",
+    "phpstan/phpstan-doctrine": "^2.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Milpa\\Orchestrator\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Milpa\\Orchestrator\\Tests\\": "tests/",
+      "Milpa\\Docs\\": "vendor/milpa/core/tools/gen-docs/"
+    }
+  }
+}
