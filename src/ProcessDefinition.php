@@ -30,11 +30,17 @@ use Milpa\Workflow\Entities\TransitionDefinition;
  * truth for "where does this process start".
  *
  * At construction, every transition's `fromState`/`toState` must resolve to a state passed in,
- * and the definition is validated acyclic among UNGATED transitions only: a `GateDefinition`
- * attached to a state's outgoing transitions marks that state a human decision point, and a
- * decision point breaks any loop through it (see {@see self::assertAcyclicAmongUngatedTransitions()}
- * for why a full-graph acyclic check would incorrectly reject a `review_gate --reject--> draft
- * --submit--> review_gate` shape, which is a legitimate revise-and-resubmit loop).
+ * and the definition is validated acyclic among UNGATED, NON-SUBPROCESS transitions only: a
+ * `GateDefinition` attached to a state's outgoing transitions marks that state a human decision
+ * point, and a {@see SubprocessSpec} marks it a "waiting on a child process" point — either kind
+ * of checkpoint breaks any loop through it (see {@see
+ * self::assertAcyclicAmongUngatedTransitions()} for why a full-graph acyclic check would
+ * incorrectly reject a `review_gate --reject--> draft --submit--> review_gate` shape, which is a
+ * legitimate revise-and-resubmit loop).
+ *
+ * A state may ALSO be declared a subprocess state via the `$subprocesses` constructor argument
+ * (see {@see self::subprocessFor()}) — mutually exclusive with both being terminal and carrying a
+ * gate, enforced at construction.
  */
 final class ProcessDefinition implements DefinitionContract
 {
@@ -44,18 +50,27 @@ final class ProcessDefinition implements DefinitionContract
     /** @var array<string, list<TransitionDefinition>> keyed by the transition's fromState code */
     private array $transitionsByFromState = [];
 
+    /** @var array<string, SubprocessSpec> keyed by the state code it waits at */
+    private array $subprocesses = [];
+
     private readonly string $initialState;
 
     /**
-     * @param list<StateDefinition>      $states      every state this process can occupy; exactly
-     *                                                one must have `isInitial() === true`
-     * @param list<TransitionDefinition> $transitions every transition between two of `$states`
+     * @param list<StateDefinition>         $states       every state this process can occupy;
+     *                                                    exactly one must have `isInitial() ===
+     *                                                    true`
+     * @param list<TransitionDefinition>    $transitions  every transition between two of `$states`
+     * @param array<string, SubprocessSpec> $subprocesses subprocess declarations keyed by the
+     *                                                    state code they wait at — see {@see
+     *                                                    self::subprocessFor()}
      *
      * @throws \RuntimeException on a duplicate state code, a transition referencing an unknown
-     *                           state, a state count other than exactly-one-initial, or a cycle
-     *                           among ungated transitions
+     *                           state, a state count other than exactly-one-initial, a subprocess
+     *                           spec referencing an unknown or terminal state, a state carrying
+     *                           both a subprocess spec and a gate, or a cycle among ungated,
+     *                           non-subprocess transitions
      */
-    public function __construct(array $states, array $transitions)
+    public function __construct(array $states, array $transitions, array $subprocesses = [])
     {
         foreach ($states as $state) {
             $code = $state->getCode();
@@ -89,6 +104,22 @@ final class ProcessDefinition implements DefinitionContract
             }
 
             $this->transitionsByFromState[$from][] = $transition;
+        }
+
+        foreach ($subprocesses as $stateCode => $spec) {
+            if (!isset($this->states[$stateCode])) {
+                throw new \RuntimeException("ProcessDefinition: subprocess spec references unknown state '{$stateCode}'.");
+            }
+            if ($this->states[$stateCode]->isTerminal()) {
+                throw new \RuntimeException("ProcessDefinition: state '{$stateCode}' cannot be both a subprocess state and terminal.");
+            }
+        }
+        $this->subprocesses = $subprocesses;
+
+        foreach (array_keys($this->subprocesses) as $stateCode) {
+            if ($this->gateFor($stateCode) !== null) {
+                throw new \RuntimeException("ProcessDefinition: state '{$stateCode}' cannot carry both a subprocess spec and a gate.");
+            }
         }
 
         $this->assertAcyclicAmongUngatedTransitions();
@@ -173,13 +204,34 @@ final class ProcessDefinition implements DefinitionContract
     }
 
     /**
-     * Guards against a state machine that can loop forever without ever passing through a human
-     * decision point. Cycle detection runs ONLY over transitions whose origin state has no
-     * attached gate ("ungated" transitions) — a gated state is a decision point, and a human
-     * resolving it is what breaks the loop each time, so `draft --submit--> review_gate
-     * --reject--> draft` is a legitimate, intentional revise-and-resubmit cycle, not a defect. A
-     * cycle entirely among ungated (automatic) transitions, however, has no such escape hatch and
-     * is rejected at load time.
+     * The {@see SubprocessSpec} declaring `$state` a subprocess state — the process WAITS here
+     * for a child process (resolved by name through a {@see ProcessDefinitionRegistry}) to reach
+     * its own terminal state, exactly like {@see self::gateFor()}'s state waits for a human
+     * decision. `null` when `$state` is not a subprocess state.
+     */
+    public function subprocessFor(string $state): ?SubprocessSpec
+    {
+        return $this->subprocesses[$state] ?? null;
+    }
+
+    /**
+     * Whether `$state` is a subprocess state — shorthand for {@see self::subprocessFor()} `!==
+     * null`.
+     */
+    public function isSubprocess(string $state): bool
+    {
+        return isset($this->subprocesses[$state]);
+    }
+
+    /**
+     * Guards against a state machine that can loop forever without ever passing through an
+     * external-trigger checkpoint. Cycle detection runs ONLY over transitions whose origin state
+     * has no attached gate AND is not a subprocess state ("ungated" transitions) — both a gated
+     * state and a subprocess state are decision points that need an outside event (a human
+     * decision, a child process finishing) to move past, and resolving either one is what breaks
+     * the loop each time, so `draft --submit--> review_gate --reject--> draft` is a legitimate,
+     * intentional revise-and-resubmit cycle, not a defect. A cycle entirely among ungated
+     * (automatic) transitions, however, has no such escape hatch and is rejected at load time.
      *
      * @throws \RuntimeException when the ungated-transition subgraph contains a cycle
      */
@@ -192,7 +244,7 @@ final class ProcessDefinition implements DefinitionContract
         }
 
         foreach ($this->transitionsByFromState as $from => $transitions) {
-            if ($this->gateFor($from) !== null) {
+            if ($this->gateFor($from) !== null || $this->isSubprocess($from)) {
                 continue;
             }
             foreach ($transitions as $transition) {

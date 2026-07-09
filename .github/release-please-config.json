@@ -3,8 +3,7 @@
   "bump-minor-pre-major": true,
   "packages": {
     ".": {
-      "release-type": "simple",
-      "package-name": "milpa/orchestrator"
+      "release-type": "simple"
     }
   }
 }

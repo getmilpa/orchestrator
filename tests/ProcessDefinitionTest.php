@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Milpa\Orchestrator\Tests;
 
 use Milpa\Orchestrator\ProcessDefinition;
+use Milpa\Orchestrator\SubprocessSpec;
 use Milpa\Orchestrator\Tests\Fixtures\SampleProcess;
+use Milpa\Orchestrator\Tests\Fixtures\SubprocessParentProcess;
+use Milpa\Workflow\Entities\GateDefinition;
 use Milpa\Workflow\Entities\StateDefinition;
 use Milpa\Workflow\Entities\TransitionDefinition;
+use Milpa\Workflow\Enums\ApprovalPolicy;
 use PHPUnit\Framework\TestCase;
 
 final class ProcessDefinitionTest extends TestCase
@@ -97,5 +101,83 @@ final class ProcessDefinitionTest extends TestCase
         ))[0];
 
         $this->assertSame('draft', $reject['to']);
+    }
+
+    public function testASubprocessStateExposesItsSpecAndIsReportedAsSuch(): void
+    {
+        $definition = SubprocessParentProcess::build();
+
+        $spec = $definition->subprocessFor(SubprocessParentProcess::STATE_REVIEW);
+
+        $this->assertNotNull($spec);
+        $this->assertSame(SampleProcess::NAME, $spec->definitionRef);
+        $this->assertTrue($definition->isSubprocess(SubprocessParentProcess::STATE_REVIEW));
+    }
+
+    public function testANonSubprocessStateReturnsNullSpecAndIsNotReportedAsOne(): void
+    {
+        $definition = SubprocessParentProcess::build();
+
+        $this->assertNull($definition->subprocessFor(SubprocessParentProcess::STATE_KICKOFF));
+        $this->assertFalse($definition->isSubprocess(SubprocessParentProcess::STATE_KICKOFF));
+    }
+
+    public function testASubprocessSpecReferencingAnUnknownStateThrows(): void
+    {
+        $only = (new StateDefinition())->setDomain('x')->setCode('only')->setLabel('Only')->setIsInitial(true)->setIsTerminal(true);
+
+        $this->expectException(\RuntimeException::class);
+
+        new ProcessDefinition([$only], [], ['not_a_state' => new SubprocessSpec(definitionRef: 'child')]);
+    }
+
+    public function testASubprocessStateThatIsAlsoTerminalThrows(): void
+    {
+        $terminal = (new StateDefinition())->setDomain('x')->setCode('t')->setLabel('T')->setIsInitial(true)->setIsTerminal(true);
+
+        $this->expectException(\RuntimeException::class);
+
+        new ProcessDefinition([$terminal], [], ['t' => new SubprocessSpec(definitionRef: 'child')]);
+    }
+
+    public function testASubprocessStateThatAlsoCarriesAGateThrows(): void
+    {
+        $start = (new StateDefinition())->setDomain('x')->setCode('start')->setLabel('Start')->setIsInitial(true);
+        $end = (new StateDefinition())->setDomain('x')->setCode('end')->setLabel('End')->setIsTerminal(true);
+
+        $gate = (new GateDefinition())
+            ->setDomain('x')
+            ->setCode('g')
+            ->setName('G')
+            ->setRequesterRole('author')
+            ->setApproverRole('reviewer')
+            ->setApprovalPolicy(ApprovalPolicy::SINGLE);
+
+        $transition = (new TransitionDefinition())->setDomain('x')->setCode('go')->setFromState($start)->setToState($end);
+        $transition->addGateDefinition($gate);
+
+        $this->expectException(\RuntimeException::class);
+
+        new ProcessDefinition([$start, $end], [$transition], ['start' => new SubprocessSpec(definitionRef: 'child')]);
+    }
+
+    public function testASubprocessStateIsExemptFromTheUngatedCycleCheck(): void
+    {
+        // begin --submit--> subprocess --[named 'done']--> begin: a full-graph cycle, but the
+        // subprocess state is an external-trigger checkpoint (like a gate) that breaks it — must
+        // NOT throw, mirroring the gate-broken revise-and-resubmit loop SampleProcess proves.
+        $begin = (new StateDefinition())->setDomain('x')->setCode('begin')->setLabel('Begin')->setIsInitial(true);
+        $waiting = (new StateDefinition())->setDomain('x')->setCode('waiting')->setLabel('Waiting');
+
+        $toWaiting = (new TransitionDefinition())->setDomain('x')->setCode('submit')->setFromState($begin)->setToState($waiting);
+        $backToBegin = (new TransitionDefinition())->setDomain('x')->setCode('done')->setFromState($waiting)->setToState($begin);
+
+        $definition = new ProcessDefinition(
+            [$begin, $waiting],
+            [$toWaiting, $backToBegin],
+            ['waiting' => new SubprocessSpec(definitionRef: 'child')],
+        );
+
+        $this->assertTrue($definition->isSubprocess('waiting'));
     }
 }
