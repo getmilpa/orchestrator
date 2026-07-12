@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/getmilpa/orchestrator/compare/v0.2.0...v0.2.1) (2026-07-12)
+
+
+### Bug Fixes
+
+* receive milpa/core 0.6 — pin bump ([7b3f6bf](https://github.com/getmilpa/orchestrator/commit/7b3f6bfe2aeb5682d65c070d4864bb0d0be4f317))
+
 ## [0.2.0](https://github.com/getmilpa/orchestrator/compare/v0.1.0...v0.2.0) (2026-07-09)
 
 
