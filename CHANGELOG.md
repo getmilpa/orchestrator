@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/getmilpa/orchestrator/compare/v0.2.1...v0.2.2) (2026-07-14)
+
+
+### Bug Fixes
+
+* accept milpa/tool-runtime ^0.5 || ^0.6 ([20f8ca9](https://github.com/getmilpa/orchestrator/commit/20f8ca9015687ee8d8fc6232dee1113ff9754029))
+
 ## [0.2.1](https://github.com/getmilpa/orchestrator/compare/v0.2.0...v0.2.1) (2026-07-12)
 
 
