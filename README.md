@@ -172,7 +172,7 @@ orchestrator kept the engine.
 ## Requirements
 
 - PHP **≥ 8.3**
-- [`milpa/core`](https://packagist.org/packages/milpa/core) **^0.5**
+- [`milpa/core`](https://packagist.org/packages/milpa/core) **^0.6**
 - [`milpa/event-store`](https://packagist.org/packages/milpa/event-store) **^0.1**
 - [`milpa/workflow`](https://packagist.org/packages/milpa/workflow) **^0.1.2**
 - [`milpa/events`](https://packagist.org/packages/milpa/events) **^0.2**

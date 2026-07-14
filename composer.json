@@ -3,6 +3,12 @@
   "description": "Generic event-sourced process engine for the Milpa PHP framework: process definitions composed from milpa/workflow states/transitions/gates, a pure reducer folding an EventStoreInterface log into process state, an auto-advancing runner, and human-gate decision surfaces via milpa/live.",
   "type": "library",
   "license": "Apache-2.0",
+  "authors": [
+    {
+      "name": "Rodrigo Vicente - TeamX Agency",
+      "homepage": "https://teamx.agency"
+    }
+  ],
   "require": {
     "php": ">=8.3",
     "milpa/core": "^0.6",
