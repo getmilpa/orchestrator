@@ -15,7 +15,7 @@
     "milpa/event-store": "^0.1",
     "milpa/workflow": "^0.1.2",
     "milpa/events": "^0.2",
-    "milpa/live": "^0.1",
+    "milpa/live": "^0.2",
     "milpa/tool-runtime": "^0.5 || ^0.6"
   },
   "require-dev": {
