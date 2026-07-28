@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/getmilpa/orchestrator/compare/v0.2.2...v0.3.0) (2026-07-28)
+
+
+### Features
+
+* accept milpa/live ^0.2 ([3c68b2a](https://github.com/getmilpa/orchestrator/commit/3c68b2ac5c4bb6e4f68b02b413da982d9ca9c6c7))
+
 ## [0.2.2](https://github.com/getmilpa/orchestrator/compare/v0.2.1...v0.2.2) (2026-07-14)
 
 
