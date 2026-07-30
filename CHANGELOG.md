@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/getmilpa/orchestrator/compare/v0.3.0...v0.3.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* catch up with the family's published versions ([e549994](https://github.com/getmilpa/orchestrator/commit/e549994c3b484073046853a78bea283f480f3bfb))
+
 ## [0.3.0](https://github.com/getmilpa/orchestrator/compare/v0.2.2...v0.3.0) (2026-07-28)
 
 
