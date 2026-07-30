@@ -195,11 +195,18 @@ final class ProcessLoopTest extends TestCase
     public function testSubmitDecisionSelfApprovalIsRejectedCleanly(): void
     {
         [$instantiate, $list, $submit] = $this->tools();
-        // ProcessInstantiateTool records ToolContext::cli()'s principal ('cli') as the requester.
+        // El requester sale de `ToolContext::cli()->principal`, y ese valor NO se escribe aquí a
+        // mano: cuando `milpa/tool-runtime` pasó de 0.6 a 0.8 renombró el principal de CLI de `cli`
+        // a `local-shell` —`cli` quedó como el CANAL— y esta prueba, que tenía la cadena escrita,
+        // empezó a aprobar su propia solicitud sin darse cuenta. La guarda dejó de guardar por un
+        // cambio de nombre en otro paquete.
+        //
+        // Preguntándole el principal al contexto, la prueba sigue probando la PROPIEDAD —nadie
+        // aprueba lo que él mismo pidió— y no una constante que puede envejecer.
         $instanceId = $instantiate->instantiate(SampleProcess::NAME, ['ref' => 1])->data['instance_id'];
         $gateId = $list->list()->data['pending'][0]['gate_id'];
 
-        $result = $submit->submit($instanceId, $gateId, 'approve', 'cli');
+        $result = $submit->submit($instanceId, $gateId, 'approve', ToolContext::cli()->principal);
 
         $this->assertFalse($result->success);
         $this->assertSame('SELF_APPROVAL_FORBIDDEN', $result->error);
