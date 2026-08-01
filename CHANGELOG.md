@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/getmilpa/orchestrator/compare/v0.4.0...v0.4.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **deps:** el pin de milpa/core acepta la linea 0.7 ([031aab6](https://github.com/getmilpa/orchestrator/commit/031aab6034daa2a0f3d9af75b6f9c6623d903d52))
+
 ## [0.4.0](https://github.com/getmilpa/orchestrator/compare/v0.3.1...v0.4.0) (2026-07-30)
 
 
