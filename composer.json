@@ -25,7 +25,8 @@
     "milpa/workflow": ">=0.1.2 <1.0",
     "milpa/events": ">=0.2 <1.0",
     "milpa/live": ">=0.4 <1.0",
-    "milpa/tool-runtime": ">=0.9 <1.0"
+    "milpa/tool-runtime": ">=0.9 <1.0",
+    "milpa/command": "^0.23"
   },
   "require-dev": {
     "phpunit/phpunit": "^11.5",
