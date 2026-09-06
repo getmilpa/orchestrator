@@ -92,7 +92,50 @@ final class ProcessRunner
     public function __construct(
         private readonly MilpaEventDispatcherInterface $dispatcher,
         private readonly ?ProcessDefinitionRegistry $registry = null,
+        private readonly ?NodeInvokerInterface $nodes = null,
     ) {
+    }
+
+    /**
+     * Which transition to take out of an automated state, and what to write with it.
+     *
+     * Without a {@see NodeInvokerInterface} this is the behaviour this engine has always had: take
+     * the first outgoing transition and append an empty payload. With one, a state can be a NODE —
+     * something that runs, writes what it produced into the log, and picks its own way out.
+     *
+     * The invoker never gets to invent an edge: an answer naming a transition that does not leave
+     * this state is refused by name, because a graph that can route somewhere it never declared is
+     * not a graph, it is a suggestion.
+     *
+     * @param list<array{name: string, to: string}> $transitions
+     *
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private function takeTransition(
+        string $state,
+        ProcessInstance $instance,
+        EventStoreInterface $store,
+        array $transitions,
+    ): array {
+        $chosen = $this->nodes?->invoke($state, $instance->context($store), $transitions);
+
+        if ($chosen === null) {
+            return [$transitions[0]['name'], []];
+        }
+
+        [$name, $payload] = $chosen;
+        $declared = array_column($transitions, 'name');
+
+        if (!\in_array($name, $declared, true)) {
+            throw new \RuntimeException(sprintf(
+                "ProcessRunner: the node bound to state '%s' chose transition '%s', which does not leave that state. Declared: %s.",
+                $state,
+                $name,
+                implode(', ', $declared),
+            ));
+        }
+
+        return [$name, $payload];
     }
 
     /**
@@ -175,7 +218,8 @@ final class ProcessRunner
                 return;
             }
 
-            $store->append(new Event($instance->instanceId, $transitions[0]['name'], [], $store->nextSeq()));
+            [$name, $payload] = $this->takeTransition($state, $instance, $store, $transitions);
+            $store->append(new Event($instance->instanceId, $name, $payload, $store->nextSeq()));
         }
     }
 

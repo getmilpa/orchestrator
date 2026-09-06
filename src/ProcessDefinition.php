@@ -68,6 +68,7 @@ final class ProcessDefinition implements DefinitionContract
      *                           state, a state count other than exactly-one-initial, a subprocess
      *                           spec referencing an unknown or terminal state, a state carrying
      *                           both a subprocess spec and a gate, or a cycle among ungated,
+     *                           unbudgeted,
      *                           non-subprocess transitions
      */
     public function __construct(array $states, array $transitions, array $subprocesses = [])
@@ -248,6 +249,19 @@ final class ProcessDefinition implements DefinitionContract
                 continue;
             }
             foreach ($transitions as $transition) {
+                // A DECLARED BUDGET IS A CHECKPOINT, exactly like a gate.
+                //
+                // This check exists because a cycle with no checkpoint has no escape and would spin
+                // forever. A transition carrying `at_most` in its metadata has one: it may be taken
+                // that many times and then it cannot be taken again, which is the same guarantee a
+                // gate gives (something outside the loop decides whether it continues) arrived at by
+                // counting instead of by asking. Without this, the shape every agent graph is made
+                // of — try, judge, try again, at most N times — is refused at construction.
+                $budget = $transition->getMetadata()['at_most'] ?? null;
+                if (\is_int($budget) && $budget > 0) {
+                    continue;
+                }
+
                 $adjacency[$from][] = $transition->getToState()->getCode();
             }
         }
