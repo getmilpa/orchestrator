@@ -9,7 +9,7 @@
 
 # Milpa Orchestrator
 
-> **Event-sourced process orchestration** for the Milpa PHP framework: **everything is a process**, a process is a state machine, and **state is a projection of an append-only log**. Human gates carry live decision surfaces whose options map **1:1** to the process's own transitions; self-approval is refused by construction; three MCP tools drive it all. The greenhouse (`example-agent-ready-blog`) proved the loop before this package froze the contracts.
+> **Declare a graph of agents; the framework compiles and governs it.** Event-sourced process orchestration for the Milpa PHP framework: **everything is a process**, a process is a state machine, and **state is a projection of an append-only log**. Human gates carry live decision surfaces whose options map **1:1** to the process's own transitions; self-approval is refused by construction; three MCP tools drive it all. The greenhouse (`example-agent-ready-blog`) proved the loop before this package froze the contracts.
 
 [![CI](https://github.com/getmilpa/orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/getmilpa/orchestrator/actions/workflows/ci.yml)
 [![Packagist](https://img.shields.io/packagist/v/milpa/orchestrator.svg)](https://packagist.org/packages/milpa/orchestrator)
@@ -46,6 +46,141 @@ Two ideas hold the whole engine together:
 
 Everything else — the auto-advancing runner, the human gate, the three MCP tools — is built on
 those two invariants.
+
+## Declare a graph of agents
+
+Since **0.6**, you do not build a process by hand: you DECLARE it, and the framework compiles it
+onto everything above. A graph is not a new kind of thing — it is a declaration that **composes
+operations**. Each node names a `milpa/command` `#[Operation]` that already exists, with its input
+schema, its effect ceiling, its scopes and its attribution, and the graph declares only the wiring,
+the channels and where it stops.
+
+```php
+use Milpa\Command\Declaration\{Because, Mutates, Operation, Reads, Target};
+use Milpa\Command\Effect\{Externality, Mutation, Reversibility, Subject};
+use Milpa\Orchestrator\Declaration\{Appends, Ask, Edge, Graph, Route, Start};
+
+/** The grader's verdict. Its cases ARE the outgoing edges of the node that returns it. */
+enum Verdict: string
+{
+    case Passed = 'PASSED';
+    case Failed = 'FAILED';
+}
+
+/** The editor's options. Its cases ARE the options of the gate that offers them. */
+enum EditorCall: string
+{
+    case PublishAsIs = 'publish_as_is';
+    case OneMoreRound = 'one_more_round';
+    case Abandon = 'abandon';
+}
+
+/** A node's return type is its output schema; each property name is the channel it lands in. */
+final readonly class GradeReport
+{
+    public function __construct(public string $feedback, public Verdict $verdict)
+    {
+    }
+}
+
+#[Operation(name: 'essay:grade', description: 'Judge the draft against the rubric.')]
+#[Reads(externality: Externality::ThirdParty)] // a read is not automatically harmless: the draft leaves the machine
+final readonly class Grade
+{
+    public function __construct(
+        #[Because('The rubric to judge against')] public string $rubric,
+        #[Because('The draft under review')] public string $draft,
+    ) {
+    }
+
+    public function run(Model $model): GradeReport
+    {
+        return $model->judge($this->rubric, $this->draft);
+    }
+}
+
+#[Graph(name: 'essay:review', description: 'Draft an essay against a rubric until it passes, then publish it.')]
+#[Start(Write::class)]
+#[Edge(from: Write::class, to: Grade::class)]
+#[Route(when: Verdict::Passed, to: Publish::class)]
+#[Route(when: Verdict::Failed, to: Write::class, atMost: 3, thenAsk: EditorCall::class)]
+#[Ask(
+    EditorCall::class,
+    of: 'editor',
+    because: 'Three drafts in a row failed the rubric. A human decides whether to publish as is, pay for one more round, or close it.',
+    waivable: false,
+)]
+#[Route(when: EditorCall::PublishAsIs, to: Publish::class)]
+#[Route(when: EditorCall::OneMoreRound, to: Write::class)]
+#[Route(when: EditorCall::Abandon, to: Abandon::class)]
+final readonly class EssayReview
+{
+    public function __construct(
+        #[Target] #[Because('The essay being written — the human names it')] public string $title,
+        #[Because('The rubric every draft is graded against')] public string $rubric,
+        public string $draft = '',
+        public string $feedback = '',
+        #[Appends('draft')] public array $drafts = [],
+        public ?string $verdict = null,
+    ) {
+    }
+}
+```
+
+Compile it and run it on the engine described in the rest of this README:
+
+```php
+use Milpa\Orchestrator\Declaration\{DeclaredGraph, NodeInvoker};
+
+$graph  = DeclaredGraph::from(EssayReview::class, fn (string $type) => $container->get($type));
+$runner = new ProcessRunner($dispatcher, null, new NodeInvoker($graph));
+
+$instance = ProcessInstance::start($store, $graph->definition, ['title' => 'Tides', 'rubric' => $rubric]);
+$runner->advance($store, $instance, $gate, 'process');
+```
+
+### The enum cases are the edges
+
+That is the whole idea. `#[Route(when: Verdict::Failed, …)]` is what a grader's structured output
+picks; `#[Route(when: EditorCall::OneMoreRound, …)]` is what a person picks at a gate. **Same
+syntax.** The only difference is who produced the enum value and what authority that spent — and
+you never write a routing function and a map that must agree with it.
+
+### `atMost` does not stop the run — it asks
+
+`atMost: 3, thenAsk: EditorCall::class` is the loop budget, and it is what makes the cycle legal:
+this engine refuses a cycle of ungated transitions because such a cycle has no escape, and a
+declared budget IS an escape. When it runs out the graph does not halt somewhere nobody chose — it
+opens a gate. Measured, three ways:
+
+| run | path through the log |
+|---|---|
+| passes first time | `grade → PASSED → publish_done` |
+| fails, revises, passes | `grade → FAILED → grade → PASSED → publish_done` |
+| always fails | `FAILED → FAILED → FAILED → editor_call → GateOpened` |
+
+And because the gate is this engine's own, **the principal that opened it cannot answer it**: the
+agent that wrote the essay structurally cannot be the editor who approves it.
+
+### Written once, derived from types
+
+| you write | the framework derives |
+|---|---|
+| the graph's constructor | the channels — the constructor IS the state |
+| `Grade(string $rubric, string $draft)` | each node's input binding, by parameter name |
+| `GradeReport { $feedback, $verdict }` | each node's output binding, by property name |
+| `enum Verdict` | the outgoing edges, and the gate's options |
+| a node with no outgoing edge | a terminal — a node always runs, a terminal is a place |
+| `#[Operation]` on each node | its input schema, effect ceiling, scopes and attribution |
+
+### Refused rather than guessed
+
+Every one of these fails at compile time, naming the class and what to declare — never on the first
+request in production: a routing enum case nobody routed; one state routing on two enums; a node
+reading a channel nobody declared; a budget of zero, or a budget with nowhere to escalate; a
+decision nobody produces; a node that says it decides and returns no verdict; an edge the
+declaration never made; and a node declaring `#[Confirms]` while this compiler cannot yet insert
+that pause — because compiling anyway would run an operation that demands confirmation without one.
 
 ## Quick example
 
