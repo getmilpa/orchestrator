@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/getmilpa/orchestrator/compare/v0.7.0...v0.7.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* a graph's starting channels cross a wire as text, not as an array ([#21](https://github.com/getmilpa/orchestrator/issues/21)) ([f90e82e](https://github.com/getmilpa/orchestrator/commit/f90e82e7e7e3dd4e07f4f2f63b64f2479cc16963))
+
 ## [0.7.0](https://github.com/getmilpa/orchestrator/compare/v0.6.0...v0.7.0) (2026-09-06)
 
 
