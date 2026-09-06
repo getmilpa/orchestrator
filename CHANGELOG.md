@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/getmilpa/orchestrator/compare/v0.6.0...v0.7.0) (2026-09-06)
+
+
+### Features
+
+* reach a declared graph from every surface with five graph:* operations ([#19](https://github.com/getmilpa/orchestrator/issues/19)) ([8927356](https://github.com/getmilpa/orchestrator/commit/8927356ee2448c88fbf24dd812c72d4ee7963aad))
+
 ## [0.6.0](https://github.com/getmilpa/orchestrator/compare/v0.5.2...v0.6.0) (2026-09-06)
 
 
