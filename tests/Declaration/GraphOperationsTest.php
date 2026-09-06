@@ -137,6 +137,18 @@ final class GraphOperationsTest extends TestCase
         ]);
     }
 
+    public function testStartingChannelsThatAreNotAJsonObjectAreRefusedByName(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/must be a JSON object of starting channels/');
+
+        ($this->operation(StartGraph::class)->handler)([
+            'graph' => 'essay:review',
+            'inputs' => 'not json at all',
+            'requester' => 'rod',
+        ]);
+    }
+
     public function testTheRegistryRefusesAClassThatIsNotAGraphAndANameWithTwoOwners(): void
     {
         $registry = new GraphRegistry();
@@ -167,7 +179,7 @@ final class GraphOperationsTest extends TestCase
 
         return ($this->operation(StartGraph::class)->handler)([
             'graph' => 'essay:review',
-            'inputs' => ['title' => 'Tides', 'rubric' => 'formal and metaphorical'],
+            'inputs' => '{"title":"Tides","rubric":"formal and metaphorical"}',
             'requester' => 'rod',
         ]);
     }
