@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/getmilpa/orchestrator/compare/v0.5.2...v0.6.0) (2026-09-06)
+
+
+### Features
+
+* declare an agent graph, and compile it onto the engine that already runs ([#16](https://github.com/getmilpa/orchestrator/issues/16)) ([6b36048](https://github.com/getmilpa/orchestrator/commit/6b360489dfb24c33b0d3559ae170ad06d89041f4))
+
 ## [0.4.1](https://github.com/getmilpa/orchestrator/compare/v0.4.0...v0.4.1) (2026-08-01)
 
 
