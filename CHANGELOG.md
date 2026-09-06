@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/getmilpa/orchestrator/compare/v0.7.1...v0.8.0) (2026-09-06)
+
+
+### Features
+
+* a pending row says which graph it belongs to and who started the run ([#23](https://github.com/getmilpa/orchestrator/issues/23)) ([6424171](https://github.com/getmilpa/orchestrator/commit/6424171d800203e0fb2a9ffd8ff6f3662f5ae6fe))
+
 ## [0.7.1](https://github.com/getmilpa/orchestrator/compare/v0.7.0...v0.7.1) (2026-09-06)
 
 
