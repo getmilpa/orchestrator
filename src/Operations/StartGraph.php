@@ -43,13 +43,12 @@ use Milpa\Orchestrator\Declaration\GraphRuns;
 #[Needs(scopes: ['graph:run'])]
 final readonly class StartGraph
 {
-    /** @param array<string, mixed> $inputs */
     public function __construct(
         #[Target]
         #[Because('Which graph to run — the name its own #[Graph] carries')]
         public string $graph,
-        #[Because('The starting values for the graph channels it requires')]
-        public array $inputs = [],
+        #[Because('The starting values for the graph channels it requires, as a JSON object')]
+        public string $inputs = '{}',
         #[Because('Who is asking for this run; it is recorded as the requester of every gate it opens')]
         public string $requester = 'unknown',
     ) {
@@ -62,6 +61,30 @@ final readonly class StartGraph
      */
     public function run(GraphRuns $runs): array
     {
-        return $runs->start($this->graph, $this->inputs, $this->requester);
+        return $runs->start($this->graph, $this->decoded(), $this->requester);
+    }
+
+    /**
+     * The starting channels, read from JSON.
+     *
+     * They arrive as TEXT and not as an array on purpose: a graph's channels differ per graph, so
+     * this input is a bag — and a bag cannot cross a command-line flag, an MCP argument and an HTTP
+     * field as anything but text. Measured on cattle: typed as `array`, `graph:start` could be
+     * called from a test and not from a terminal, which makes «reachable from every surface» false.
+     *
+     * @return array<string, mixed>
+     */
+    private function decoded(): array
+    {
+        $decoded = json_decode($this->inputs, true);
+
+        if (!\is_array($decoded)) {
+            throw new \InvalidArgumentException(
+                "graph:start: `inputs` must be a JSON object of starting channels, and this is not one: {$this->inputs}"
+            );
+        }
+
+        /** @var array<string, mixed> $decoded */
+        return $decoded;
     }
 }
