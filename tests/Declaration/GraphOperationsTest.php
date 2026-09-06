@@ -90,6 +90,8 @@ final class GraphOperationsTest extends TestCase
             $pending['pending'][0]['options'],
             'what a human is offered are the cases of the enum the routes were declared with',
         );
+        self::assertSame('essay:review', $pending['pending'][0]['graph'], 'a decision a surface cannot answer is not a decision it can show');
+        self::assertSame('rod', $pending['pending'][0]['requester'], 'and whoever decides deserves to know on whose behalf the run started');
     }
 
     public function testAnsweringLetsTheRunContinueWhereThatCaseDeclared(): void

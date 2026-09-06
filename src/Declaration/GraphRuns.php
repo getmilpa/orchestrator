@@ -98,6 +98,9 @@ final class GraphRuns
     /**
      * Every decision waiting for a human, across every run of every declared graph.
      *
+     * Each row also says WHICH graph it belongs to and WHO started the run, which the engine's own row
+     * does not carry — and without them a surface can list a decision it cannot answer.
+     *
      * @return list<array<string, mixed>>
      */
     public function pending(): array
@@ -110,6 +113,26 @@ final class GraphRuns
 
         /** @var list<array<string, mixed>> $rows */
         $rows = $result->success ? ($result->data['pending'] ?? []) : [];
+
+        // WHICH GRAPH, and WHO ASKED — the engine's own row does not carry either, and without them a
+        // surface can list a waiting decision and not answer it: `graph:decide` needs the graph's name,
+        // and a human deciding deserves to know on whose behalf the run was started. Both are already in
+        // the instance's context, put there when it started.
+        foreach ($rows as $index => $row) {
+            $instanceId = (string) ($row['instance_id'] ?? '');
+
+            if ($instanceId === '') {
+                continue;
+            }
+
+            $context = [];
+            foreach ($this->store->replay($instanceId) as $event) {
+                $context = array_merge($context, $event->payload);
+            }
+
+            $rows[$index]['graph'] = (string) ($context['_definition'] ?? '');
+            $rows[$index]['requester'] = (string) ($context['_requester'] ?? '');
+        }
 
         return $rows;
     }
