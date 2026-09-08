@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace Milpa\Orchestrator\Event;
 
+use Milpa\Interfaces\Event\DeclaresEvents;
 use Milpa\Interfaces\Event\EventDeclaration;
 use Milpa\Orchestrator\ProcessRunner;
 
@@ -25,8 +26,12 @@ use Milpa\Orchestrator\ProcessRunner;
  * moment it receives one, and the house counts them from there. The names below are the SAME
  * constants the `dispatch()` sites use: a declaration that retyped the string could drift from
  * the dispatch it describes, and nothing would notice.
+ *
+ * The class is also the package's {@see DeclaresEvents} holder, named in `extra.milpa.events` of
+ * this package's manifest: a host that reads the manifest can declare these events on behalf of an
+ * emitter the running process never constructs — a CLI run never builds a {@see ProcessRunner}.
  */
-final class OrchestratorEvents
+final class OrchestratorEvents implements DeclaresEvents
 {
     /**
      * Dispatched by {@see ProcessRunner} the first time a process instance is found at a terminal

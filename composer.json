@@ -20,7 +20,7 @@
   ],
   "require": {
     "php": ">=8.3",
-    "milpa/core": ">=0.11 <1.0",
+    "milpa/core": ">=0.12 <1.0",
     "milpa/event-store": ">=0.1 <1.0",
     "milpa/workflow": ">=0.1.2 <1.0",
     "milpa/events": ">=0.2 <1.0",
@@ -34,6 +34,13 @@
     "phpstan/phpdoc-parser": "^2.3",
     "friendsofphp/php-cs-fixer": "^3.65",
     "phpstan/phpstan-doctrine": "^2.0"
+  },
+  "extra": {
+    "milpa": {
+      "events": [
+        "Milpa\\Orchestrator\\Event\\OrchestratorEvents"
+      ]
+    }
   },
   "autoload": {
     "psr-4": {
