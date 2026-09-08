@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/getmilpa/orchestrator/compare/v0.9.0...v0.10.0) (2026-09-08)
+
+
+### Features
+
+* name this package's event holder in its manifest ([#28](https://github.com/getmilpa/orchestrator/issues/28)) ([41d5144](https://github.com/getmilpa/orchestrator/commit/41d5144756d92a5ca549482d44853e3444e1138e))
+
 ## [0.9.0](https://github.com/getmilpa/orchestrator/compare/v0.8.0...v0.9.0) (2026-09-08)
 
 
