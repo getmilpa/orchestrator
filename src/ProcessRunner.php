@@ -16,7 +16,9 @@ namespace Milpa\Orchestrator;
 
 use Milpa\EventStore\Event;
 use Milpa\EventStore\EventStoreInterface;
+use Milpa\Interfaces\Event\DeclaredEvents;
 use Milpa\Interfaces\Event\MilpaEventDispatcherInterface;
+use Milpa\Orchestrator\Event\OrchestratorEvents;
 use Milpa\Support\UuidGenerator;
 
 /**
@@ -89,11 +91,20 @@ final class ProcessRunner
      */
     public const int MAX_SUBPROCESS_DEPTH = 10;
 
+    /**
+     * Declares this package's events to `$dispatcher` on the way in — the one place the dispatcher
+     * enters this package — so the house can count them (greenhouse decisions/0228). A dispatcher
+     * that does not implement {@see DeclaredEvents} is told nothing and everything still works:
+     * dispatching an undeclared name is never refused, declaring is not enforced.
+     */
     public function __construct(
         private readonly MilpaEventDispatcherInterface $dispatcher,
         private readonly ?ProcessDefinitionRegistry $registry = null,
         private readonly ?NodeInvokerInterface $nodes = null,
     ) {
+        if ($dispatcher instanceof DeclaredEvents) {
+            $dispatcher->declare(...OrchestratorEvents::declarations());
+        }
     }
 
     /**
@@ -250,7 +261,7 @@ final class ProcessRunner
 
         $context = $instance->context($store);
 
-        $this->dispatcher->dispatch('process.terminal', [
+        $this->dispatcher->dispatch(OrchestratorEvents::PROCESS_TERMINAL, [
             'instance_id' => $instance->instanceId,
             'final_state' => $state,
             'context' => $context,
