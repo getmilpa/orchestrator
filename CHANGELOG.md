@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/getmilpa/orchestrator/compare/v0.8.0...v0.9.0) (2026-09-08)
+
+
+### Features
+
+* declare every event this package dispatches to the dispatcher ([#27](https://github.com/getmilpa/orchestrator/issues/27)) ([d0ae0c9](https://github.com/getmilpa/orchestrator/commit/d0ae0c9afa37b5220cf97f5b62a5e3dc8b33fc6d))
+
+
+### Bug Fixes
+
+* admit every minor of milpa/command, not just 0.23 ([#25](https://github.com/getmilpa/orchestrator/issues/25)) ([9d773c5](https://github.com/getmilpa/orchestrator/commit/9d773c5d62783ca197cd082e527e86188ace56a6))
+
 ## [0.8.0](https://github.com/getmilpa/orchestrator/compare/v0.7.1...v0.8.0) (2026-09-06)
 
 
