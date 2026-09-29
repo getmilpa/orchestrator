@@ -24,6 +24,7 @@ use Milpa\Command\Effect\Externality;
 use Milpa\Command\Effect\Mutation;
 use Milpa\Command\Effect\Reversibility;
 use Milpa\Command\Effect\Subject;
+use Milpa\Command\InvocationContext;
 use Milpa\Orchestrator\Declaration\GraphRuns;
 
 /**
@@ -32,6 +33,11 @@ use Milpa\Orchestrator\Declaration\GraphRuns;
  * It mutates because a run is a fact appended to a log, and that log is what everything else reads.
  * Its reversibility is honest: nothing here can un-append what a node already did in the world, so
  * the way back is to answer the run's own gate.
+ *
+ * The REQUESTER is who started the run, as the surface attributed it — never an input (greenhouse decisions/0528).
+ * It is what every gate the run opens records, and what `graph:decide` refuses as an approver; a requester the
+ * caller could write was an approval the caller could arrange. A caller the surface did not verify is recorded as
+ * `unverified:<channel>`, which no verified actor can be, so any verified human may answer what it opened.
  */
 #[Operation(name: 'graph:start', description: 'Start a declared graph and advance it until it finishes or needs a human.')]
 #[Mutates(
@@ -49,8 +55,6 @@ final readonly class StartGraph
         public string $graph,
         #[Because('The starting values for the graph channels it requires, as a JSON object')]
         public string $inputs = '{}',
-        #[Because('Who is asking for this run; it is recorded as the requester of every gate it opens')]
-        public string $requester = 'unknown',
     ) {
     }
 
@@ -59,9 +63,19 @@ final readonly class StartGraph
      *
      * @return array<string, mixed>
      */
-    public function run(GraphRuns $runs): array
+    public function run(GraphRuns $runs, ?InvocationContext $context = null): array
     {
-        return $runs->start($this->graph, $this->decoded(), $this->requester);
+        return $runs->start($this->graph, $this->decoded(), self::requester($context));
+    }
+
+    /** Who is asking, as the surface attributed it: the verified actor, or the channel it came in unverified. */
+    private static function requester(?InvocationContext $context): string
+    {
+        if ($context !== null && $context->isAttributable()) {
+            return (string) $context->actor;
+        }
+
+        return 'unverified:' . ($context === null ? 'unknown' : $context->channel);
     }
 
     /**
