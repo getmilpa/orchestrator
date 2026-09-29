@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.0](https://github.com/getmilpa/orchestrator/compare/v0.10.0...v0.11.0) (2026-09-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* process_submit_decision no longer takes a `principal` argument; ProcessSubmitDecisionTool::submit() takes three arguments. A caller acting for a human must call it under that human's own authenticated ToolContext. Both tools now return UNAUTHENTICATED when called without an authenticated principal.
+
+### Bug Fixes
+
+* take a gate's approver from the authenticated context, never an argument ([#30](https://github.com/getmilpa/orchestrator/issues/30)) ([624e7a2](https://github.com/getmilpa/orchestrator/commit/624e7a242ac1d639c60ca002e6b7c4914e30ea60))
+
 ## [0.10.0](https://github.com/getmilpa/orchestrator/compare/v0.9.0...v0.10.0) (2026-09-08)
 
 
