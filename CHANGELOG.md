@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.12.0](https://github.com/getmilpa/orchestrator/compare/v0.11.0...v0.12.0) (2026-09-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* graph:decide no longer takes `principal` and graph:start no longer takes `requester`; a caller still sending them is ignored (the schema does not declare them). Answering a gate needs a verified actor. Requires milpa/command >= 0.27 (greenhouse decisions/0528).
+
+### Bug Fixes
+
+* take a graph gate's approver and requester from the authenticated context, never an argument ([#32](https://github.com/getmilpa/orchestrator/issues/32)) ([d3d7d4c](https://github.com/getmilpa/orchestrator/commit/d3d7d4c97ce805f4ce25ff1308da2ef2e0edecfb))
+
 ## [0.11.0](https://github.com/getmilpa/orchestrator/compare/v0.10.0...v0.11.0) (2026-09-29)
 
 
