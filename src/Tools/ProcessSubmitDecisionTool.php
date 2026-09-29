@@ -50,6 +50,13 @@ use Milpa\Workflow\Exceptions\SelfApprovalException;
  * (`UNAUTHENTICATED`), and the context is dropped after every call, so one caller's identity can
  * never answer for the next.
  *
+ * And the authenticated caller must be a VERIFIED actor, not a transport's placeholder (greenhouse
+ * decisions/0528). On a process-trusted transport the principal names the pipe, not a person: MCP over
+ * stdio is `stdio` for whoever holds it, and a terminal is `local-shell` for whoever has a shell. Judged
+ * only as author ≠ approver, an agent over MCP could approve a gate a human opened. Those placeholders
+ * ({@see self::UNVERIFIED}) cannot resolve a gate (`UNVERIFIED_APPROVER`); a signed call, a passkey
+ * session or a host-authenticated caller can.
+ *
  * This tool touches NO domain entity — reaching a terminal state is surfaced purely via the
  * `process.terminal` event {@see ProcessRunner} dispatches; a consumer subscribes to that event
  * to run whatever domain effect its own process definition's terminal state should trigger.
@@ -57,6 +64,12 @@ use Milpa\Workflow\Exceptions\SelfApprovalException;
 final class ProcessSubmitDecisionTool
 {
     use ResolvesDefinitionNameTrait;
+
+    /**
+     * The principals tool-runtime's process-trust factories write when nobody was verified: `cli()`/`tui()`
+     * (`local-shell`), `stdio()` (`stdio`) and `mcp()` without a principal (`mcp`).
+     */
+    public const array UNVERIFIED = ['local-shell', 'stdio', 'mcp'];
 
     private ?ToolContext $context = null;
 
@@ -95,6 +108,12 @@ final class ProcessSubmitDecisionTool
             return ToolResult::error(
                 'UNAUTHENTICATED',
                 'A decision needs an authenticated caller; the principal is read from the tool context, never from the arguments.',
+            );
+        }
+        if (\in_array($principal, self::UNVERIFIED, true)) {
+            return ToolResult::error(
+                'UNVERIFIED_APPROVER',
+                "A gate is answered by a verified actor — a signed call or a passkey session — and '{$principal}' names a transport, not a person.",
             );
         }
 
