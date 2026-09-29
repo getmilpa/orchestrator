@@ -38,6 +38,8 @@ final class SubmitDecisionAuthorityTest extends TestCase
 
     private ProcessSubmitDecisionTool $submit;
 
+    private ProcessInstantiateTool $instantiate;
+
     protected function setUp(): void
     {
         $this->store = new InMemoryEventStore();
@@ -48,10 +50,11 @@ final class SubmitDecisionAuthorityTest extends TestCase
         $gate = new HumanGate(new StubDecisionSurfaceFactory());
         $runner = new ProcessRunner(new EventDispatcher(new NullLogger()));
         $this->submit = new ProcessSubmitDecisionTool($this->store, $gate, $runner, $definitions);
+        $this->instantiate = new ProcessInstantiateTool($this->store, $gate, $runner, $definitions);
 
         $this->tools = new ToolRegistry(new NullLogger());
         $scanner = new ToolScanner($this->tools);
-        $scanner->scan(new ProcessInstantiateTool($this->store, $gate, $runner, $definitions));
+        $scanner->scan($this->instantiate);
         $scanner->scan(new ProcessListPendingApprovalsTool($this->store, $gate, $definitions));
         $scanner->scan($this->submit);
     }
@@ -156,5 +159,42 @@ final class SubmitDecisionAuthorityTest extends TestCase
         $this->assertFalse($result->success);
         $this->assertSame('UNAUTHENTICATED', $result->error);
         $this->assertSame([], $this->decisions($instanceId));
+    }
+
+    public function testARunWithNoAuthenticatedRequesterIsNotStarted(): void
+    {
+        $result = $this->instantiate->instantiate(SampleProcess::NAME, ['ref' => 1]);
+
+        $this->assertFalse($result->success);
+        $this->assertSame('UNAUTHENTICATED', $result->error);
+        $this->assertSame([], $this->store->streams());
+    }
+
+    public function testAnEarlierRequesterDoesNotCarryOverToTheNextRun(): void
+    {
+        $this->instantiate->setCurrentContext(self::caller('human:reviewer'));
+        $this->instantiate->instantiate('not_a_real_process', []);
+
+        $result = $this->instantiate->instantiate(SampleProcess::NAME, ['ref' => 1]);
+
+        $this->assertFalse($result->success);
+        $this->assertSame('UNAUTHENTICATED', $result->error);
+    }
+
+    public function testADeclaredRequesterInTheInputsIsOverwrittenByTheAuthenticatedOne(): void
+    {
+        $started = $this->tools->call('process_instantiate', [
+            'definition' => SampleProcess::NAME,
+            'inputs' => ['ref' => 1, '_requester' => 'human:reviewer'],
+        ], self::caller('agent:writer'));
+        $gateId = $this->tools->call('process_list_pending_approvals', [], self::caller('agent:writer'))->data['pending'][0]['gate_id'];
+
+        $result = $this->tools->call('process_submit_decision', [
+            'instance_id' => $started->data['instance_id'],
+            'gate_id' => $gateId,
+            'decision' => 'approve',
+        ], self::caller('agent:writer'));
+
+        $this->assertSame('SELF_APPROVAL_FORBIDDEN', $result->error);
     }
 }

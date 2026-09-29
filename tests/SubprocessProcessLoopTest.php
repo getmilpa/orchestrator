@@ -92,10 +92,11 @@ final class SubprocessProcessLoopTest extends TestCase
         $parentInstanceId = $instantiate->instantiate(SubprocessParentProcess::NAME, ['ref' => 1])->data['instance_id'];
         $childPending = $list->list()->data['pending'][0];
 
-        // ProcessInstantiateTool records ToolContext::cli()'s principal ('cli') as the requester
-        // for the whole chain (parent AND child) — 'human:reviewer' resolves it without
-        // self-approval.
-        $result = $submit->submit($childPending['instance_id'], $childPending['gate_id'], 'approve', 'human:reviewer');
+        // ProcessInstantiateTool records ToolContext::cli()'s principal ('local-shell') as the requester
+        // for the whole chain (parent AND child) — a caller authenticated as 'human:reviewer'
+        // resolves it without self-approval.
+        $submit->setCurrentContext(new ToolContext(principal: 'human:reviewer'));
+        $result = $submit->submit($childPending['instance_id'], $childPending['gate_id'], 'approve');
 
         $this->assertTrue($result->success);
         $this->assertSame(SampleProcess::STATE_DONE, $result->data['current_state']);

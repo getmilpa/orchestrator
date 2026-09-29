@@ -262,9 +262,12 @@ $pending['assignee'];   // 'editor'
 $pending['options'];    // ['approve', 'reject']
 $gateId  = $pending['gate_id'];
 
-// 3. An editor — NOT the author — resolves it. Self-approval is refused by construction:
-//    submitting as 'agent:author' here returns error SELF_APPROVAL_FORBIDDEN instead.
-$done = $submit->submit($instanceId, $gateId, 'approve', 'human:editor');
+// 3. An editor — NOT the author — resolves it. Who decides is the AUTHENTICATED caller the host
+//    puts in the ToolContext, never an argument: the tool takes no `principal`, so the author
+//    cannot answer by naming someone else. Submitting under the author's own context returns
+//    SELF_APPROVAL_FORBIDDEN; submitting with no context returns UNAUTHENTICATED.
+$submit->setCurrentContext(ToolContext::mcp('req-2', 'human:editor', ['*']));
+$done = $submit->submit($instanceId, $gateId, 'approve');
 $done->data['current_state'];   // 'published' — auto-advanced past the gate to terminal;
                                 //  `process.terminal` fired exactly once.
 

@@ -69,9 +69,17 @@ final class ToolSchemaTest extends TestCase
         $schema = $this->registry()->schemaFor('process_submit_decision');
 
         $this->assertNotNull($schema);
-        foreach (['instance_id', 'gate_id', 'decision', 'principal'] as $param) {
+        foreach (['instance_id', 'gate_id', 'decision'] as $param) {
             $this->assertSame('string', $schema['properties'][$param]['type']);
             $this->assertContains($param, $schema['required']);
         }
+    }
+
+    public function testProcessSubmitDecisionTakesNoPrincipalFromTheCaller(): void
+    {
+        $schema = $this->registry()->schemaFor('process_submit_decision');
+
+        $this->assertNotNull($schema);
+        $this->assertArrayNotHasKey('principal', $schema['properties'], 'who decides comes from the ToolContext, never from an argument');
     }
 }

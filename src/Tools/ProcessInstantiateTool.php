@@ -71,17 +71,24 @@ final class ProcessInstantiateTool
         )]
         array $inputs,
     ): ToolResult {
+        // The requester is who the host authenticated, read once and then dropped so it can never
+        // answer for a later call. No `'unknown'` fallback: a gate whose requester nobody can name
+        // lets anyone — its own author included — approve it (see ProcessSubmitDecisionTool).
+        $requester = $this->context !== null ? $this->context->principal : null;
+        $this->context = null;
+        if ($requester === null || $requester === '') {
+            return ToolResult::error(
+                'UNAUTHENTICATED',
+                'Starting a process needs an authenticated caller; it is recorded as the requester of every gate the run opens.',
+            );
+        }
+
         if (!$this->registry->has($definition)) {
             return ToolResult::error(
                 'UNKNOWN_DEFINITION',
                 "No process definition named '{$definition}'. Registered: " . implode(', ', $this->registry->names()) . '.',
             );
         }
-
-        // Not `$this->context?->principal ?? 'unknown'`: PHPStan flags that nullsafe access as
-        // `nullsafe.neverNull` at this family's phpstan level even though `$this->context`
-        // genuinely defaults to `null` until `setCurrentContext()` runs.
-        $requester = $this->context !== null ? ($this->context->principal ?? 'unknown') : 'unknown';
 
         // Carried in the process's own context so a LATER re-open of the same gate (a
         // revise-and-resubmit loop) keeps recording the ORIGINAL requester — see
