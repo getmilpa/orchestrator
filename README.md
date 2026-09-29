@@ -270,7 +270,8 @@ $gateId  = $pending['gate_id'];
 // 3. An editor — NOT the author — resolves it. Who decides is the AUTHENTICATED caller the host
 //    puts in the ToolContext, never an argument: the tool takes no `principal`, so the author
 //    cannot answer by naming someone else. Submitting under the author's own context returns
-//    SELF_APPROVAL_FORBIDDEN; submitting with no context returns UNAUTHENTICATED.
+//    SELF_APPROVAL_FORBIDDEN; submitting with no context returns UNAUTHENTICATED; and a transport's
+//    placeholder (`stdio`, `local-shell`, a nameless `mcp`) names nobody, so it returns UNVERIFIED_APPROVER.
 $submit->setCurrentContext(ToolContext::mcp('req-2', 'human:editor', ['*']));
 $done = $submit->submit($instanceId, $gateId, 'approve');
 $done->data['current_state'];   // 'published' — auto-advanced past the gate to terminal;

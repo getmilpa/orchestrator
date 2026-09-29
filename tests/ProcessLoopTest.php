@@ -206,10 +206,15 @@ final class ProcessLoopTest extends TestCase
         //
         // Preguntándole el principal al contexto, la prueba sigue probando la PROPIEDAD —nadie
         // aprueba lo que él mismo pidió— y no una constante que puede envejecer.
+        //
+        // A verified author, since greenhouse decisions/0528: `local-shell` names a terminal, not a person,
+        // and is refused before the self-approval rule is ever asked (SubmitDecisionNeedsAVerifiedActorTest).
+        $author = ToolContext::web('human:author', ['*']);
+        $instantiate->setCurrentContext($author);
         $instanceId = $instantiate->instantiate(SampleProcess::NAME, ['ref' => 1])->data['instance_id'];
         $gateId = $list->list()->data['pending'][0]['gate_id'];
 
-        $submit->setCurrentContext(ToolContext::cli());
+        $submit->setCurrentContext($author);
         $result = $submit->submit($instanceId, $gateId, 'approve');
 
         $this->assertFalse($result->success);
