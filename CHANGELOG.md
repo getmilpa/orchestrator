@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.13.0](https://github.com/getmilpa/orchestrator/compare/v0.12.0...v0.13.0) (2026-09-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* an unsigned terminal, the TUI and an MCP stdio client can no longer resolve a gate with process_submit_decision; call it under the deciding human's own authenticated ToolContext.
+
+### Bug Fixes
+
+* a gate is answered by a verified actor, not a transport's placeholder ([#34](https://github.com/getmilpa/orchestrator/issues/34)) ([6a793a0](https://github.com/getmilpa/orchestrator/commit/6a793a08bdb0134a60ead8c20f814c172446d30c))
+
 ## [0.12.0](https://github.com/getmilpa/orchestrator/compare/v0.11.0...v0.12.0) (2026-09-29)
 
 
