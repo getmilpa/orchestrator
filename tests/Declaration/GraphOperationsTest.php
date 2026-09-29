@@ -15,6 +15,7 @@ declare(strict_types=1);
 namespace Milpa\Orchestrator\Tests\Declaration;
 
 use Milpa\Command\Declaration\DeclaredOperation;
+use Milpa\Command\InvocationContext;
 use Milpa\Command\Operation;
 use Milpa\EventStore\FileEventStore;
 use Milpa\Eventing\EventDispatcher;
@@ -102,8 +103,7 @@ final class GraphOperationsTest extends TestCase
             'graph' => 'essay:review',
             'instance' => $started['instance_id'],
             'decision' => 'abandon',
-            'principal' => 'editor',
-        ]);
+        ], self::verified('editor'));
 
         self::assertSame('abandon_done', $decided['state']);
         self::assertNull($decided['awaiting']);
@@ -135,8 +135,7 @@ final class GraphOperationsTest extends TestCase
             'graph' => 'essay:review',
             'instance' => $started['instance_id'],
             'decision' => 'abandon',
-            'principal' => 'editor',
-        ]);
+        ], self::verified('editor'));
     }
 
     public function testStartingChannelsThatAreNotAJsonObjectAreRefusedByName(): void
@@ -147,8 +146,7 @@ final class GraphOperationsTest extends TestCase
         ($this->operation(StartGraph::class)->handler)([
             'graph' => 'essay:review',
             'inputs' => 'not json at all',
-            'requester' => 'rod',
-        ]);
+        ], self::verified('rod'));
     }
 
     public function testTheRegistryRefusesAClassThatIsNotAGraphAndANameWithTwoOwners(): void
@@ -182,8 +180,13 @@ final class GraphOperationsTest extends TestCase
         return ($this->operation(StartGraph::class)->handler)([
             'graph' => 'essay:review',
             'inputs' => '{"title":"Tides","rubric":"formal and metaphorical"}',
-            'requester' => 'rod',
-        ]);
+        ], self::verified('rod'));
+    }
+
+    /** Who the surface authenticated — the only place a requester or an approver is read from. */
+    private static function verified(string $actor): InvocationContext
+    {
+        return new InvocationContext(actor: $actor, verified: true, channel: 'web', authorizationId: 'test');
     }
 
     /** @param class-string $class */

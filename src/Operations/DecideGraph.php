@@ -23,13 +23,20 @@ use Milpa\Command\Effect\Externality;
 use Milpa\Command\Effect\Mutation;
 use Milpa\Command\Effect\Reversibility;
 use Milpa\Command\Effect\Subject;
+use Milpa\Command\InvocationContext;
 use Milpa\Orchestrator\Declaration\GraphRuns;
+use Milpa\Workflow\Exceptions\SelfApprovalException;
 
 /**
  * Answers one waiting decision, and lets the run continue from there.
  *
- * The principal is not decoration: this engine refuses a decision submitted by the same principal
- * that opened the gate, so the agent that produced the work cannot be the one that approves it.
+ * WHO ANSWERS IS WHO THE SURFACE AUTHENTICATED, never a name the caller writes (greenhouse decisions/0528). This
+ * engine refuses a decision from the principal that opened the gate, so the agent that produced the work cannot be
+ * the one that approves it — and that only holds if the approver is not an argument. An earlier version took a
+ * `principal` input and judged the rule against it: an agent over MCP, an actor over HTTP and a signed terminal
+ * each approved a gate they had opened by naming somebody else (evidence/1062). Now the approver is the verified
+ * actor of the invocation — the passkey session behind the panel's door, the key behind a terminal's signature —
+ * and a caller the surface did not verify (MCP stdio, an unsigned terminal) cannot answer a gate at all.
  */
 #[Operation(name: 'graph:decide', description: 'Answer a decision a run is waiting on, and let it continue.')]
 #[Mutates(
@@ -49,18 +56,34 @@ final readonly class DecideGraph
         public string $instance,
         #[Because('The answer — it must be one of the options the gate offered')]
         public string $decision,
-        #[Because('Who is answering; it must differ from whoever the gate recorded as requester')]
-        public string $principal,
     ) {
     }
 
     /**
-     * Records the answer and advances the run from there.
+     * Records the answer on behalf of the verified caller and advances the run from there.
+     *
+     * A refusal is a result, not an exception: the person who pressed the button reads the sentence, and an HTTP
+     * surface would hide an exception's message behind a 500.
      *
      * @return array<string, mixed>
      */
-    public function run(GraphRuns $runs): array
+    public function run(GraphRuns $runs, ?InvocationContext $context = null): array
     {
-        return $runs->decide($this->graph, $this->instance, $this->decision, $this->principal);
+        if ($context === null || !$context->isAttributable()) {
+            return [
+                'ok' => false,
+                'error' => 'A gate is answered by a verified actor — a passkey session or a signed call — and this call carries none. '
+                    . 'The approver is read from who the surface authenticated, never from the arguments.',
+            ];
+        }
+
+        try {
+            return $runs->decide($this->graph, $this->instance, $this->decision, (string) $context->actor);
+        } catch (SelfApprovalException) {
+            return [
+                'ok' => false,
+                'error' => "{$context->actor} opened this gate, so it cannot approve it: the work and its approval need two different people.",
+            ];
+        }
     }
 }

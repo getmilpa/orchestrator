@@ -162,6 +162,11 @@ opens a gate. Measured, three ways:
 And because the gate is this engine's own, **the principal that opened it cannot answer it**: the
 agent that wrote the essay structurally cannot be the editor who approves it.
 
+Both identities are read from who the surface authenticated, never from the arguments: `graph:start`
+records the verified actor that started the run as its requester, and `graph:decide` takes no
+`principal` — its approver is the passkey session or the signature behind the call. A caller the
+surface did not verify (MCP over stdio, an unsigned terminal) can start a run but cannot answer a gate.
+
 ### Written once, derived from types
 
 | you write | the framework derives |
