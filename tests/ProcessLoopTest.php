@@ -132,7 +132,8 @@ final class ProcessLoopTest extends TestCase
         $instanceId = $instantiate->instantiate(SampleProcess::NAME, ['ref' => 1])->data['instance_id'];
         $gateId = $list->list()->data['pending'][0]['gate_id'];
 
-        $result = $submit->submit($instanceId, $gateId, 'approve', 'human:reviewer');
+        $submit->setCurrentContext(new ToolContext(principal: 'human:reviewer'));
+        $result = $submit->submit($instanceId, $gateId, 'approve');
 
         $this->assertTrue($result->success);
         $this->assertSame('done', $result->data['current_state']);
@@ -154,7 +155,8 @@ final class ProcessLoopTest extends TestCase
         [$instantiate, $list, $submit, $store] = $this->tools();
         $instanceId = $instantiate->instantiate(SampleProcess::NAME, ['ref' => 1])->data['instance_id'];
         $gateId = $list->list()->data['pending'][0]['gate_id'];
-        $submit->submit($instanceId, $gateId, 'approve', 'human:reviewer');
+        $submit->setCurrentContext(new ToolContext(principal: 'human:reviewer'));
+        $submit->submit($instanceId, $gateId, 'approve');
 
         $this->assertCount(1, $this->firedTerminalEvents);
 
@@ -179,7 +181,8 @@ final class ProcessLoopTest extends TestCase
         $instanceId = $instantiate->instantiate(SampleProcess::NAME, ['ref' => 1])->data['instance_id'];
         $gateId = $list->list()->data['pending'][0]['gate_id'];
 
-        $result = $submit->submit($instanceId, $gateId, 'reject', 'human:reviewer');
+        $submit->setCurrentContext(new ToolContext(principal: 'human:reviewer'));
+        $result = $submit->submit($instanceId, $gateId, 'reject');
 
         $this->assertTrue($result->success);
         // ProcessRunner drives draft --submit--> review_gate again and opens a fresh gate — the
@@ -206,7 +209,8 @@ final class ProcessLoopTest extends TestCase
         $instanceId = $instantiate->instantiate(SampleProcess::NAME, ['ref' => 1])->data['instance_id'];
         $gateId = $list->list()->data['pending'][0]['gate_id'];
 
-        $result = $submit->submit($instanceId, $gateId, 'approve', ToolContext::cli()->principal);
+        $submit->setCurrentContext(ToolContext::cli());
+        $result = $submit->submit($instanceId, $gateId, 'approve');
 
         $this->assertFalse($result->success);
         $this->assertSame('SELF_APPROVAL_FORBIDDEN', $result->error);
@@ -217,7 +221,8 @@ final class ProcessLoopTest extends TestCase
         [$instantiate, , $submit] = $this->tools();
         $instanceId = $instantiate->instantiate(SampleProcess::NAME, ['ref' => 1])->data['instance_id'];
 
-        $result = $submit->submit($instanceId, 'never_opened_gate', 'approve', 'human:reviewer');
+        $submit->setCurrentContext(new ToolContext(principal: 'human:reviewer'));
+        $result = $submit->submit($instanceId, 'never_opened_gate', 'approve');
 
         $this->assertFalse($result->success);
         $this->assertSame('GATE_NOT_PENDING', $result->error);
@@ -227,7 +232,8 @@ final class ProcessLoopTest extends TestCase
     {
         [, , $submit] = $this->tools();
 
-        $result = $submit->submit('does-not-exist', 'review_gate_gate', 'approve', 'human:reviewer');
+        $submit->setCurrentContext(new ToolContext(principal: 'human:reviewer'));
+        $result = $submit->submit('does-not-exist', 'review_gate_gate', 'approve');
 
         $this->assertFalse($result->success);
         $this->assertSame('UNKNOWN_INSTANCE', $result->error);

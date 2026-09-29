@@ -21,6 +21,7 @@ use Milpa\Orchestrator\ProcessInstance;
 use Milpa\Orchestrator\ProcessRunner;
 use Milpa\ToolRuntime\Attributes\Param;
 use Milpa\ToolRuntime\Attributes\Tool;
+use Milpa\ToolRuntime\Contracts\ToolContext;
 use Milpa\ToolRuntime\ToolResult;
 use Milpa\Workflow\Exceptions\SelfApprovalException;
 
@@ -39,6 +40,16 @@ use Milpa\Workflow\Exceptions\SelfApprovalException;
  * parameter name IS the JSON-RPC argument key a caller must send — this family's wire
  * convention is snake_case throughout.
  *
+ * The resolving principal is the AUTHENTICATED caller — the {@see ToolContext} the host injects
+ * through {@see self::setCurrentContext()} — never an argument. An earlier version took a
+ * `principal` argument and judged it against the gate's requester, so an agent that opened a
+ * gate could approve its own work by naming anyone else: author ≠ approver was only as strong as
+ * the caller's honesty. A caller acting for a human authenticates AS that human (the host builds
+ * that human's own context — e.g. {@see ToolContext::web()} or {@see ToolContext::authorizedBy()})
+ * instead of asserting the name. With no authenticated principal the call fails closed
+ * (`UNAUTHENTICATED`), and the context is dropped after every call, so one caller's identity can
+ * never answer for the next.
+ *
  * This tool touches NO domain entity — reaching a terminal state is surfaced purely via the
  * `process.terminal` event {@see ProcessRunner} dispatches; a consumer subscribes to that event
  * to run whatever domain effect its own process definition's terminal state should trigger.
@@ -46,6 +57,8 @@ use Milpa\Workflow\Exceptions\SelfApprovalException;
 final class ProcessSubmitDecisionTool
 {
     use ResolvesDefinitionNameTrait;
+
+    private ?ToolContext $context = null;
 
     public function __construct(
         private readonly EventStoreInterface $store,
@@ -55,8 +68,15 @@ final class ProcessSubmitDecisionTool
     ) {
     }
 
+    /** Captures the calling {@see ToolContext} — the tool scanner injects it when this method exists. */
+    public function setCurrentContext(ToolContext $ctx): void
+    {
+        $this->context = $ctx;
+    }
+
     /**
-     * Resolves `$gate_id` for `$instance_id` with `$decision` and auto-advances the process again.
+     * Resolves `$gate_id` for `$instance_id` with `$decision` on behalf of the authenticated caller
+     * and auto-advances the process again.
      *
      * @return ToolResult with data `{instance_id: string, current_state: string}` on success
      */
@@ -68,9 +88,16 @@ final class ProcessSubmitDecisionTool
         string $gate_id,
         #[Param('The decision — must be one of the gate\'s offered options', required: true)]
         string $decision,
-        #[Param('The resolving principal; must differ from whoever opened the gate', required: true)]
-        string $principal,
     ): ToolResult {
+        $principal = $this->context?->principal;
+        $this->context = null;
+        if ($principal === null || $principal === '') {
+            return ToolResult::error(
+                'UNAUTHENTICATED',
+                'A decision needs an authenticated caller; the principal is read from the tool context, never from the arguments.',
+            );
+        }
+
         $definitionName = $this->definitionNameFor($this->store, $instance_id);
         if ($definitionName === null || !$this->registry->has($definitionName)) {
             return ToolResult::error('UNKNOWN_INSTANCE', "No process instance found for '{$instance_id}'.");
