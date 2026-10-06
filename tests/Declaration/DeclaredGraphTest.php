@@ -16,6 +16,7 @@ namespace Milpa\Orchestrator\Tests\Declaration;
 
 use Milpa\EventStore\FileEventStore;
 use Milpa\Eventing\EventDispatcher;
+use Milpa\Orchestrator\Declaration\Caller;
 use Milpa\Orchestrator\Declaration\CompiledGraph;
 use Milpa\Orchestrator\Declaration\DeclaredGraph;
 use Milpa\Orchestrator\Declaration\GraphDeclarationException;
@@ -28,6 +29,7 @@ use Milpa\Orchestrator\Tests\Declaration\Fixtures\RiskyGraph;
 use Milpa\Orchestrator\Tests\Declaration\Fixtures\Verdict;
 use Milpa\Orchestrator\Tests\Declaration\Fixtures\Writer;
 use Milpa\Orchestrator\Tests\Fixtures\StubDecisionSurfaceFactory;
+use Milpa\ToolRuntime\Contracts\ToolContext;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -193,7 +195,9 @@ final class DeclaredGraphTest extends TestCase
         $store = new FileEventStore($path);
 
         $gate = new HumanGate(new StubDecisionSurfaceFactory());
-        $runner = new ProcessRunner(new EventDispatcher(new NullLogger()), null, new NodeInvoker($graph));
+        // The graph's one scoped node is essay:publish, so whoever drives it holds exactly that.
+        $publisher = new Caller(authority: ToolContext::web('process', ['essay:publish']));
+        $runner = new ProcessRunner(new EventDispatcher(new NullLogger()), null, new NodeInvoker($graph, $publisher));
 
         $instance = ProcessInstance::start($store, $graph->definition, ['title' => 'Tides', 'rubric' => 'formal and metaphorical']);
         $runner->advance($store, $instance, $gate, 'process');
@@ -226,6 +230,7 @@ final class DeclaredGraphTest extends TestCase
         yield 'a node reading a channel nobody declared' => [Fixtures\StrangerChannel::class, '/which is not a channel of this graph/'];
         yield 'a graph with no constructor' => [Fixtures\Stateless::class, '/has no constructor/'];
         yield 'a constructor that promotes nothing' => [Fixtures\Channelless::class, '/declares no channels/'];
+        yield 'a channel under a name the engine keeps' => [Fixtures\ReservedChannel::class, "/declares the channel '_taken'.*kept for what the engine writes/"];
         yield 'a node that is not an operation' => [Fixtures\Mute::class, '/is not a usable operation/'];
         yield 'a budget of zero' => [Fixtures\ZeroBudget::class, '/A budget of zero is not a loop/'];
         yield 'a budget that simply stops' => [Fixtures\BudgetWithoutAsk::class, '/but no thenAsk/'];

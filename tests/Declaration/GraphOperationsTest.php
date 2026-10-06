@@ -19,11 +19,13 @@ use Milpa\Command\InvocationContext;
 use Milpa\Command\Operation;
 use Milpa\EventStore\FileEventStore;
 use Milpa\Eventing\EventDispatcher;
+use Milpa\Interfaces\Di\DIContainerInterface;
 use Milpa\Orchestrator\Declaration\GraphDeclarationException;
 use Milpa\Orchestrator\Declaration\GraphRegistry;
 use Milpa\Orchestrator\Declaration\GraphRuns;
 use Milpa\Orchestrator\HumanGate;
 use Milpa\Orchestrator\Operations\DecideGraph;
+use Milpa\Orchestrator\Operations\GraphOperations;
 use Milpa\Orchestrator\Operations\ListGraphs;
 use Milpa\Orchestrator\Operations\PendingDecisions;
 use Milpa\Orchestrator\Operations\ShowGraphRun;
@@ -32,6 +34,7 @@ use Milpa\Orchestrator\Tests\Declaration\Fixtures\EssayReview;
 use Milpa\Orchestrator\Tests\Declaration\Fixtures\Verdict;
 use Milpa\Orchestrator\Tests\Declaration\Fixtures\Writer;
 use Milpa\Orchestrator\Tests\Fixtures\StubDecisionSurfaceFactory;
+use Milpa\ToolRuntime\Contracts\ToolContext;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -43,6 +46,7 @@ use Psr\Log\NullLogger;
  * answer whether a terminal, an MCP client or the Desktop asks it, and a run parked in a log is
  * answerable from wherever the human happens to be.
  */
+#[CoversClass(GraphOperations::class)]
 #[CoversClass(GraphRegistry::class)]
 #[CoversClass(GraphRuns::class)]
 #[CoversClass(ListGraphs::class)]
@@ -177,10 +181,11 @@ final class GraphOperationsTest extends TestCase
     {
         $this->writer = new Writer($verdicts);
 
+        // rod may run graphs and publish essays — the graph's one scoped node is essay:publish.
         return ($this->operation(StartGraph::class)->handler)([
             'graph' => 'essay:review',
             'inputs' => '{"title":"Tides","rubric":"formal and metaphorical"}',
-        ], self::verified('rod'));
+        ], self::verified('rod'), ToolContext::web('rod', ['graph:run', 'essay:publish']));
     }
 
     /** Who the surface authenticated — the only place a requester or an approver is read from. */
@@ -189,13 +194,27 @@ final class GraphOperationsTest extends TestCase
         return new InvocationContext(actor: $actor, verified: true, channel: 'web', authorizationId: 'test');
     }
 
-    /** @param class-string $class */
+    /**
+     * The operation as the door hands it to a surface — the handler that also takes the caller's authority.
+     *
+     * @param class-string $class
+     */
     private function operation(string $class): Operation
     {
         $this->runs ??= $this->build();
         $runs = $this->runs;
+        $container = $this->createMock(DIContainerInterface::class);
+        $container->method('get')->willReturn($runs);
 
-        return DeclaredOperation::from($class, static fn (string $type): object => $runs);
+        $name = DeclaredOperation::from($class, static fn (string $type): object => $runs)->name;
+
+        foreach ((new GraphOperations($container))->operations() as $operation) {
+            if ($operation->name === $name) {
+                return $operation;
+            }
+        }
+
+        self::fail("{$class} is not one of the graph operations.");
     }
 
     private function build(): GraphRuns

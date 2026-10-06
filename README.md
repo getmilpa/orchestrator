@@ -130,14 +130,19 @@ final readonly class EssayReview
 Compile it and run it on the engine described in the rest of this README:
 
 ```php
-use Milpa\Orchestrator\Declaration\{DeclaredGraph, NodeInvoker};
+use Milpa\Orchestrator\Declaration\{Caller, DeclaredGraph, NodeInvoker};
 
 $graph  = DeclaredGraph::from(EssayReview::class, fn (string $type) => $container->get($type));
-$runner = new ProcessRunner($dispatcher, null, new NodeInvoker($graph));
+// Who is driving this advance: the context and the authority a surface hands every handler.
+$runner = new ProcessRunner($dispatcher, null, new NodeInvoker($graph, new Caller($context, $authority)));
 
 $instance = ProcessInstance::start($store, $graph->definition, ['title' => 'Tides', 'rubric' => $rubric]);
 $runner->advance($store, $instance, $gate, 'process');
 ```
+
+An app does not write those lines: it lists `GraphOperations` in its `config/operations.php` and
+reaches every graph through `graph:start`, `graph:decide`, `graph:pending`, `graph:show` and
+`graph:list`, which hand the caller over for it.
 
 ### The enum cases are the edges
 
@@ -167,6 +172,53 @@ records the verified actor that started the run as its requester, and `graph:dec
 `principal` — its approver is the passkey session or the signature behind the call. A caller the
 surface did not verify (MCP over stdio, an unsigned terminal) can start a run but cannot answer a gate.
 
+### A node runs as whoever is driving the run
+
+`graph:start` and `graph:decide` declare their own scopes, and those admit the START and the ANSWER
+— not the nodes. Each node is an operation with its own `#[Needs]`, and it is judged again, on its
+own, at the moment it is about to run:
+
+- **It is handed the caller.** A node whose `run()` asks for `?InvocationContext` receives the one
+  of the invocation that reached it, and is called the way a surface calls every handler: input,
+  context, authority.
+- **It runs only if that caller holds what it declares.** Scopes are alternatives — holding any one
+  admits the call. A call that carries no authority holds nothing, so a node that declares a need
+  does not run for it; a node that declares none runs as it always did.
+- **A refusal is a result, not an exception.** The node's handler is never reached, the run stays
+  parked at that node, and the operation answers
+  `{ok: false, error: "The node 'publish' (essay:publish) did not run: it needs the scope essay:publish, which actor:clerk does not hold. …", state: "publish", refused: {…}}`.
+
+**Across a gate the run changes hands, and nothing about authority crosses it.** The nodes before a
+gate run as whoever started the run; the nodes after it run as whoever answered, judged against what
+THAT caller holds. Authority is never written to the log and never read back from it, so:
+
+| who started | who answers | what runs after the gate |
+|---|---|---|
+| an agent that may not publish | a human who may | `publish` runs, **as the human** — that is what the gate is for |
+| somebody who may publish | a clerk who may not | nothing: the answer is **not recorded**, the gate keeps waiting |
+
+The second row is judged BEFORE the answer is written: an answer that leads straight to a node its
+approver may not run would spend the gate and leave the run somewhere nobody can continue it.
+
+Who ran each node is in the log, in the same event that carries what the node wrote, and so is every
+refusal. `graph:show` returns it in order as `trail` — `{node, operation, outcome: ran|refused, by:
+{actor, verified, channel, principal, authorization}}` — with who was driving, never what they held.
+
+Those records are the engine's to write, and three rules keep them so:
+
+- **The starting inputs are the graph's channels and nothing else.** `graph:start` keeps only the
+  keys the graph's constructor declares, so a caller cannot write that somebody else ran a node,
+  that a loop budget is already spent, or that this run is the child of another one.
+- **A leading underscore is the engine's.** A graph that declares a channel named `_taken`, `_ran`
+  or any `_…` is refused at compile time.
+- **A run is answered and shown as a run of the graph it was started as.** `graph:decide` and
+  `graph:show` refuse an instance named under another graph: whose nodes are judged is what the
+  run's own log says, not what the call says.
+
+One limit, said rather than hidden: a node typed by a **permission** (`#[Needs(permission: …)]`)
+needs a policy this engine does not have, so only a caller holding the wildcard `*` runs it; a
+finite caller is refused, because not knowing is not allowing.
+
 ### Written once, derived from types
 
 | you write | the framework derives |
@@ -184,7 +236,7 @@ Every one of these fails at compile time, naming the class and what to declare �
 request in production: a routing enum case nobody routed; one state routing on two enums; a node
 reading a channel nobody declared; a budget of zero, or a budget with nowhere to escalate; a
 decision nobody produces; a node that says it decides and returns no verdict; an edge the
-declaration never made; and a node declaring `#[Confirms]` while this compiler cannot yet insert
+declaration never made; a channel under a name the engine keeps for itself; and a node declaring `#[Confirms]` while this compiler cannot yet insert
 that pause — because compiling anyway would run an operation that demands confirmation without one.
 
 ## Quick example

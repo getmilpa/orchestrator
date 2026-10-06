@@ -313,6 +313,47 @@ final class SubprocessTest extends TestCase
         $this->assertCount(1, $routedEvents, 'subprocess_done must be routed to the parent exactly once');
     }
 
+    public function testAnInstanceThatOnlyClaimsAParentDoesNotMoveIt(): void
+    {
+        // Being somebody's child is what the PARENT's log says, in the SubprocessStarted marker it wrote when it
+        // started that child. `parent_instance_id` alone is a claim in the claimant's own starting inputs — and
+        // whoever starts an instance writes those.
+        $store = new InMemoryEventStore();
+        $registry = $this->registry();
+        $runner = new ProcessRunner(new EventDispatcher(new NullLogger()), $registry);
+        $gate = new HumanGate(new StubDecisionSurfaceFactory());
+
+        $parent = ProcessInstance::start($store, $registry->get(SubprocessParentProcess::NAME), ['ref' => 7, '_definition' => SubprocessParentProcess::NAME], 'parent-9');
+        $runner->advance($store, $parent, $gate, 'ana');
+        $realChild = $this->childInstanceIdOf($store, 'parent-9');
+
+        $impostor = ProcessInstance::start(
+            $store,
+            $registry->get(SampleProcess::NAME),
+            ['ref' => 666, '_definition' => SampleProcess::NAME, 'parent_instance_id' => 'parent-9', 'parent_state' => SubprocessParentProcess::STATE_REVIEW],
+            'impostor-9',
+        );
+        $runner->advance($store, $impostor, $gate, 'mallory');
+        $pending = $gate->pendingFor($store, $impostor);
+        $this->assertNotNull($pending);
+        $gate->resolve($store, $impostor, $pending->gateId, 'approve', 'ben');
+        $runner->advance($store, $impostor, $gate, 'mallory');
+
+        $this->assertSame(SampleProcess::STATE_DONE, $impostor->currentState($store), 'the impostor itself finishes as any instance does');
+        $this->assertSame(SubprocessParentProcess::STATE_REVIEW, $parent->currentState($store), 'and the parent it named is still waiting for the child it really started');
+        $this->assertArrayNotHasKey('outputs', $parent->context($store));
+
+        // The real child still routes, exactly as before.
+        $child = new ProcessInstance($realChild, $registry->get(SampleProcess::NAME));
+        $pending = $gate->pendingFor($store, $child);
+        $this->assertNotNull($pending);
+        $gate->resolve($store, $child, $pending->gateId, 'approve', 'ben');
+        $runner->advance($store, $child, $gate, 'ana');
+
+        $this->assertSame(SubprocessParentProcess::STATE_FINISHED, $parent->currentState($store));
+        $this->assertSame(7, $parent->context($store)['outputs']['ref']);
+    }
+
     public function testTheDepthLimitThrowsOnRunawayNesting(): void
     {
         $store = new InMemoryEventStore();
