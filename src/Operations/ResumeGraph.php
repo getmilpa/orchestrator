@@ -25,6 +25,7 @@ use Milpa\Command\Effect\Reversibility;
 use Milpa\Command\Effect\Subject;
 use Milpa\Command\InvocationContext;
 use Milpa\Orchestrator\Declaration\Caller;
+use Milpa\Orchestrator\Declaration\CallRefused;
 use Milpa\Orchestrator\Declaration\GraphRuns;
 
 /**
@@ -80,6 +81,10 @@ final readonly class ResumeGraph
      */
     public function runAs(GraphRuns $runs, Caller $caller): array
     {
-        return $runs->resume($this->graph, $this->instance, $caller);
+        try {
+            return $runs->resume($this->graph, $this->instance, $caller);
+        } catch (CallRefused $refused) {
+            return $refused->answer();
+        }
     }
 }

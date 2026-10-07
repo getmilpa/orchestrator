@@ -23,7 +23,6 @@ use Milpa\Orchestrator\ProcessInstance;
 use Milpa\Orchestrator\ProcessRunner;
 use Milpa\Orchestrator\Tools\ProcessListPendingApprovalsTool;
 use Milpa\Workflow\Exceptions\SelfApprovalException;
-use Milpa\Workflow\Exceptions\TransitionNotAllowedException;
 
 /**
  * Starting, resuming and inspecting declared graphs — the one collaborator the `graph:*` operations work through.
@@ -187,9 +186,9 @@ final class GraphRuns
      *
      * @return array{instance_id: string, state: string, awaiting: ?string, ok?: false, error?: string, refused?: array<string, mixed>}
      *
-     * @throws GraphDeclarationException     when the run is not a run of this graph, or is not waiting for a decision
-     * @throws SelfApprovalException         when the principal answering is the one that asked
-     * @throws TransitionNotAllowedException when the answer is not one of the offered options
+     * @throws CallRefused           when the run is not a run of this graph, is not waiting for a decision, or the
+     *                               answer is not one its gate offers
+     * @throws SelfApprovalException when the principal answering is the one that asked
      */
     public function decide(string $name, string $instanceId, string $decision, string $principal, ?Caller $caller = null): array
     {
@@ -199,7 +198,12 @@ final class GraphRuns
 
         $waiting = $this->gate->pendingFor($this->store, $instance);
         if ($waiting === null) {
-            throw new GraphDeclarationException("Run '{$instanceId}' is not waiting for a decision.");
+            throw new CallRefused("Run '{$instanceId}' is not waiting for a decision.");
+        }
+        if (!\in_array($decision, $waiting->options, true)) {
+            throw new CallRefused(
+                "'{$decision}' is not a valid decision for run '{$instanceId}': its gate offers " . implode(', ', $waiting->options) . '.'
+            );
         }
 
         $ahead = $this->refusalAhead($graph, $instance, $decision, $caller);
@@ -239,7 +243,7 @@ final class GraphRuns
      *
      * @return array{instance_id: string, state: string, awaiting: ?string, ok?: false, error?: string, refused?: array<string, mixed>}
      *
-     * @throws GraphDeclarationException when the run is not a run of this graph, or is not parked by a refused node
+     * @throws CallRefused when the run is not a run of this graph, or is not parked by a refused node
      */
     public function resume(string $name, string $instanceId, ?Caller $caller = null): array
     {
@@ -249,7 +253,7 @@ final class GraphRuns
         $state = $instance->currentState($this->store);
 
         if ($this->refusedAt($instance) !== $state) {
-            throw new GraphDeclarationException(match (true) {
+            throw new CallRefused(match (true) {
                 $graph->definition->isTerminal($state) => "Run '{$instanceId}' has finished: there is nothing to resume.",
                 $graph->definition->gateFor($state) !== null => "Run '{$instanceId}' is waiting for a decision: answer it with graph:decide. Resuming a run answers nothing.",
                 default => "Run '{$instanceId}' is not parked by a refused node: graph:resume carries on only a run whose next node its caller was not allowed to run.",
@@ -285,7 +289,7 @@ final class GraphRuns
      *
      * @return array{instance_id: string, state: string, awaiting: ?string, context: array<string, mixed>, trail: list<array<string, mixed>>}
      *
-     * @throws GraphDeclarationException when the run is not a run of this graph, or does not exist
+     * @throws CallRefused when the run is not a run of this graph, or does not exist
      */
     public function show(string $name, string $instanceId): array
     {
@@ -305,14 +309,14 @@ final class GraphRuns
      * graph from the caller would let a run be answered under another graph with the same gate: that one's nodes
      * judged in place of its own, the gate spent, and the run reading as finished at a node that never ran.
      *
-     * @throws GraphDeclarationException when the run was not started as this graph, or does not exist
+     * @throws CallRefused when the run was not started as this graph, or does not exist
      */
     private function runOf(CompiledGraph $graph, string $instanceId): ProcessInstance
     {
         $started = $this->store->replay($instanceId)[0] ?? null;
 
         if ($started === null || $started->type !== 'ProcessStarted' || ($started->payload['_definition'] ?? null) !== $graph->name) {
-            throw new GraphDeclarationException("Run '{$instanceId}' is not a run of '{$graph->name}'.");
+            throw new CallRefused("Run '{$instanceId}' is not a run of '{$graph->name}'.");
         }
 
         return new ProcessInstance($instanceId, $graph->definition);

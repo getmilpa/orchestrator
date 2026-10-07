@@ -80,12 +80,13 @@ final class GraphRegistry
     /**
      * The compiled graph carrying this name, compiled on first use and kept afterwards.
      *
-     * @throws GraphDeclarationException when no graph carries that name
+     * @throws CallRefused               when no graph carries that name
+     * @throws GraphDeclarationException when the graph that does cannot be compiled
      */
     public function get(string $name): CompiledGraph
     {
         if (!isset($this->classes[$name])) {
-            throw new GraphDeclarationException(
+            throw new CallRefused(
                 "No graph named '{$name}'. Declared: " . (implode(', ', $this->names()) ?: 'none') . '.'
             );
         }

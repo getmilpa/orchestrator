@@ -25,6 +25,7 @@ use Milpa\Command\Effect\Reversibility;
 use Milpa\Command\Effect\Subject;
 use Milpa\Command\InvocationContext;
 use Milpa\Orchestrator\Declaration\Caller;
+use Milpa\Orchestrator\Declaration\CallRefused;
 use Milpa\Orchestrator\Declaration\GraphRuns;
 use Milpa\Workflow\Exceptions\SelfApprovalException;
 
@@ -98,6 +99,8 @@ final readonly class DecideGraph
 
         try {
             return $runs->decide($this->graph, $this->instance, $this->decision, (string) $context->actor, $caller);
+        } catch (CallRefused $refused) {
+            return $refused->answer();
         } catch (SelfApprovalException) {
             return [
                 'ok' => false,

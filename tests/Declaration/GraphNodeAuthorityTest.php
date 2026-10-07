@@ -423,12 +423,9 @@ final class GraphNodeAuthorityTest extends TestCase
     {
         $started = $this->start(clean: false, context: self::verified('actor:agent-7'), authority: self::holding('agent-7', 'graph:run'));
 
-        try {
-            $this->decide($started, 'burn_it', self::verified('actor:rod'), self::holding('rod', '*'));
-            self::fail('an answer the gate never offered was taken');
-        } catch (\InvalidArgumentException $refused) {
-            self::assertStringContainsString("'burn_it' is not a valid decision", $refused->getMessage());
-        }
+        $refused = $this->decide($started, 'burn_it', self::verified('actor:rod'), self::holding('rod', '*'));
+        self::assertFalse($refused['ok'] ?? true, 'an answer the gate never offered was taken');
+        self::assertStringContainsString("'burn_it' is not a valid decision", (string) ($refused['error'] ?? ''));
 
         self::assertCount(1, $this->runs->pending());
     }
