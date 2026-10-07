@@ -19,13 +19,20 @@ use Milpa\Orchestrator\NodeInvokerInterface;
 /**
  * Runs the node bound to a state, writes what it produced, and takes the edge its answer names.
  *
- * Three things happen here and each one is derived from a declaration rather than configured:
+ * Four things happen here and each one is derived from a declaration rather than configured:
  *
+ *  - **whether it may run** is what the node's own `#[Needs]` says, judged against whoever is driving the run right
+ *    now ({@see Caller}) — a node the root's scope reached is not thereby a node its caller may run. A refused node
+ *    is not called at all ({@see NodeRefused});
  *  - **the input** is projected from the channels by parameter NAME, so no node declares a mapping;
  *  - **what it produced** is written into the log under the channel names its result object already
  *    uses, so the artifact lives in the process's own memory instead of in whoever drove it;
  *  - **the edge** is the case of the routing enum the node returned — the same mechanism a human's
  *    gate answer uses, which is the whole point.
+ *
+ * The node is called the way a surface calls every handler — its input, who to attribute the call to, and the
+ * caller's authority — so a `run()` that asks for its `InvocationContext` receives the one of the invocation that
+ * reached it. Who that was is written into the same event the node's channels are ({@see self::RAN}).
  *
  * The loop budget is counted FROM THE LOG, not from a counter someone maintains: the count rides in
  * the appended payload, so a replay of the same events reaches the same decision. When the budget is
@@ -36,7 +43,14 @@ final readonly class NodeInvoker implements NodeInvokerInterface
     /** The reserved channel the loop budget is counted in. */
     public const string TAKEN = '_taken';
 
-    public function __construct(private CompiledGraph $graph)
+    /** The reserved key under which each node's event says which node ran, and who ran it. */
+    public const string RAN = '_ran';
+
+    /**
+     * @param Caller $caller who is driving the run for this advance. The default is nobody — no context to hand a
+     *                       node and no authority to judge its needs against, so only nodes that declare none run
+     */
+    public function __construct(private CompiledGraph $graph, private Caller $caller = new Caller())
     {
     }
 
@@ -47,6 +61,8 @@ final readonly class NodeInvoker implements NodeInvokerInterface
      * @param list<array{name: string, to: string}> $transitions
      *
      * @return array{0: string, 1: array<string, mixed>}|null
+     *
+     * @throws NodeRefused when the caller driving the run does not hold what the node declares it needs
      */
     public function invoke(string $state, array $context, array $transitions): ?array
     {
@@ -56,8 +72,19 @@ final readonly class NodeInvoker implements NodeInvokerInterface
             return null; // a gate state has no node: the engine's own behaviour stands.
         }
 
-        $result = ($operation->handler)($this->inputFor($operation->inputSchema, $context));
+        $why = $this->caller->refusalOf($operation);
+
+        if ($why !== null) {
+            throw NodeRefused::at($state, $operation, $why);
+        }
+
+        $result = ($operation->handler)(
+            $this->inputFor($operation->inputSchema, $context),
+            $this->caller->context,
+            $this->caller->authority,
+        );
         $payload = $this->channelsFrom($result, $context);
+        $payload[self::RAN] = ['node' => $state, 'operation' => $operation->name, 'by' => $this->caller->record()];
         $table = $this->graph->routing[$state] ?? null;
 
         if ($table === null) {

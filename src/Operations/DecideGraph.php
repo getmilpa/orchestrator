@@ -24,6 +24,7 @@ use Milpa\Command\Effect\Mutation;
 use Milpa\Command\Effect\Reversibility;
 use Milpa\Command\Effect\Subject;
 use Milpa\Command\InvocationContext;
+use Milpa\Orchestrator\Declaration\Caller;
 use Milpa\Orchestrator\Declaration\GraphRuns;
 use Milpa\Workflow\Exceptions\SelfApprovalException;
 
@@ -37,6 +38,10 @@ use Milpa\Workflow\Exceptions\SelfApprovalException;
  * each approved a gate they had opened by naming somebody else (evidence/1062). Now the approver is the verified
  * actor of the invocation — the passkey session behind the panel's door, the key behind a terminal's signature —
  * and a caller the surface did not verify (MCP stdio, an unsigned terminal) cannot answer a gate at all.
+ *
+ * WHAT RUNS AFTER THE ANSWER RUNS AS WHOEVER ANSWERED. `graph:decide` admits the answer, not the nodes it leads to:
+ * those are judged against what the approver holds, never against what the starter held when the run parked. An
+ * answer that leads straight to a node the approver may not run is not recorded, and the gate keeps waiting.
  */
 #[Operation(name: 'graph:decide', description: 'Answer a decision a run is waiting on, and let it continue.')]
 #[Mutates(
@@ -69,6 +74,20 @@ final readonly class DecideGraph
      */
     public function run(GraphRuns $runs, ?InvocationContext $context = null): array
     {
+        return $this->runAs($runs, new Caller($context));
+    }
+
+    /**
+     * The same answer, given by a caller whose authority came with the call — what the door ({@see GraphOperations})
+     * calls. Through {@see self::run()} the approver holds nothing, so only answers leading to nodes that declare no
+     * need are taken.
+     *
+     * @return array<string, mixed>
+     */
+    public function runAs(GraphRuns $runs, Caller $caller): array
+    {
+        $context = $caller->context;
+
         if ($context === null || !$context->isAttributable()) {
             return [
                 'ok' => false,
@@ -78,7 +97,7 @@ final readonly class DecideGraph
         }
 
         try {
-            return $runs->decide($this->graph, $this->instance, $this->decision, (string) $context->actor);
+            return $runs->decide($this->graph, $this->instance, $this->decision, (string) $context->actor, $caller);
         } catch (SelfApprovalException) {
             return [
                 'ok' => false,

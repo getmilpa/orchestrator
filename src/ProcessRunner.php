@@ -339,7 +339,8 @@ final class ProcessRunner
 
     /**
      * Routes `$instance`'s terminal outcome to its parent, if it has one — a no-op when
-     * `$context['parent_instance_id']` is absent (an ordinary, non-subprocess terminal instance).
+     * `$context['parent_instance_id']` is absent (an ordinary, non-subprocess terminal instance), and equally when
+     * the named parent never recorded starting this instance ({@see self::startedAsChildOf()}).
      *
      * Resolves the parent's {@see ProcessDefinition} through the injected {@see
      * ProcessDefinitionRegistry} by reading the `_definition` marker off the parent stream's own
@@ -372,6 +373,15 @@ final class ProcessRunner
     ): void {
         $parentInstanceId = $context['parent_instance_id'] ?? null;
         if (!is_string($parentInstanceId) || $parentInstanceId === '') {
+            return;
+        }
+
+        // BEING A CHILD IS WHAT THE PARENT'S LOG SAYS, not what the child's says. `parent_instance_id` lives in the
+        // child's own starting inputs, and whoever starts an instance writes those: honoured alone, any instance
+        // could name any other as its parent and, by finishing, append to that stream and advance it — under
+        // whatever this advance is running as. The parent recorded each child it really started; a claim it never
+        // recorded routes nothing.
+        if (!$this->startedAsChildOf($store, $parentInstanceId, $instance->instanceId)) {
             return;
         }
 
@@ -415,6 +425,21 @@ final class ProcessRunner
         $parentRequester = (string) ($parentInstance->context($store)['_requester'] ?? $requester);
 
         $this->advance($store, $parentInstance, $gate, $parentRequester, $depth + 1);
+    }
+
+    /**
+     * Did `$parentInstanceId` itself record starting `$childInstanceId` — a `SubprocessStarted` marker on the
+     * PARENT's own stream naming it, which only {@see self::enterSubprocessOnce()} appends?
+     */
+    private function startedAsChildOf(EventStoreInterface $store, string $parentInstanceId, string $childInstanceId): bool
+    {
+        foreach ($store->replay($parentInstanceId) as $event) {
+            if ($event->type === self::SUBPROCESS_STARTED_MARKER && ($event->payload['child_instance_id'] ?? null) === $childInstanceId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

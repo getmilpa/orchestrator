@@ -25,6 +25,7 @@ use Milpa\Command\Effect\Mutation;
 use Milpa\Command\Effect\Reversibility;
 use Milpa\Command\Effect\Subject;
 use Milpa\Command\InvocationContext;
+use Milpa\Orchestrator\Declaration\Caller;
 use Milpa\Orchestrator\Declaration\GraphRuns;
 
 /**
@@ -38,6 +39,9 @@ use Milpa\Orchestrator\Declaration\GraphRuns;
  * It is what every gate the run opens records, and what `graph:decide` refuses as an approver; a requester the
  * caller could write was an approval the caller could arrange. A caller the surface did not verify is recorded as
  * `unverified:<channel>`, which no verified actor can be, so any verified human may answer what it opened.
+ *
+ * `graph:run` ADMITS THE START, NOT THE NODES. Each node runs as whoever started the run and only if that caller
+ * holds what the node itself declares; one that does not is not run, and the result says so with the run parked there.
  */
 #[Operation(name: 'graph:start', description: 'Start a declared graph and advance it until it finishes or needs a human.')]
 #[Mutates(
@@ -61,11 +65,29 @@ final readonly class StartGraph
     /**
      * Starts the run and reports where it came to rest.
      *
+     * This is what a declared operation exposes, and a declared `run()` is never handed the caller's authority. So a
+     * run started through here has a caller that holds nothing: its nodes are handed the context, and those that
+     * declare a need do not run. The door ({@see GraphOperations}) calls {@see self::runAs()} instead.
+     *
      * @return array<string, mixed>
      */
     public function run(GraphRuns $runs, ?InvocationContext $context = null): array
     {
-        return $runs->start($this->graph, $this->decoded(), self::requester($context));
+        return $this->runAs($runs, new Caller($context));
+    }
+
+    /**
+     * The same start, driven by a caller whose authority came with the call.
+     *
+     * A graph is a driver: it originates one governed call per node, and admission to `graph:start` does not
+     * authorize them. So it takes what a surface hands every handler as its third argument — the caller's authority —
+     * and each node is judged against it.
+     *
+     * @return array<string, mixed>
+     */
+    public function runAs(GraphRuns $runs, Caller $caller): array
+    {
+        return $runs->start($this->graph, $this->decoded(), self::requester($caller->context), $caller);
     }
 
     /** Who is asking, as the surface attributed it: the verified actor, or the channel it came in unverified. */

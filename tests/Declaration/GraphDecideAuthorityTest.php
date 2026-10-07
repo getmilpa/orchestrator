@@ -138,6 +138,7 @@ final class GraphDecideAuthorityTest extends TestCase
         ], 'agent-7');
 
         self::assertFalse($this->approved($decided), 'the actor that opened the gate approved it by posting principal=rod: ' . json_encode($decided));
+        self::assertStringContainsString('opened this gate', (string) ($decided['error'] ?? ''), 'refused for being its own approver, not for a scope it lacks');
         self::assertSame(1, $this->pendingCount());
     }
 
@@ -167,8 +168,9 @@ final class GraphDecideAuthorityTest extends TestCase
         $started = $runner->run($this->operations['graph:start'], ['graph' => 'essay:review', 'inputs' => $this->inputs(), 'requester' => 'seat'], 'cli', $seat);
         $instance = (string) $started['instance_id'];
 
-        $self = $runner->run($this->operations['graph:decide'], ['graph' => 'essay:review', 'instance' => $instance, 'decision' => 'publish_as_is', 'principal' => 'rod'], 'cli', $seat);
+        $self = $runner->run($this->operations['graph:decide'], ['graph' => 'essay:review', 'instance' => $instance, 'decision' => 'publish_as_is', 'principal' => 'rod'], 'cli', $seat, ToolContext::cli());
         self::assertFalse($this->approved($self), (string) json_encode($self));
+        self::assertStringContainsString('opened this gate', (string) ($self['error'] ?? ''), 'refused for being its own approver, not for a scope it lacks');
         self::assertSame(1, $this->pendingCount());
 
         $human = new InvocationContext(actor: 'key:ROD', verified: true, channel: 'cli', authorizationId: 'sha256:y');
@@ -241,7 +243,7 @@ final class GraphDecideAuthorityTest extends TestCase
 
             public function __construct(string $id)
             {
-                $this->actor = (object) ['id' => $id, 'scopes' => ['graph:run', 'graph:decide', 'graph:read']];
+                $this->actor = (object) ['id' => $id, 'scopes' => ['graph:run', 'graph:decide', 'graph:read', 'essay:publish']];
             }
 
             public function isAuthenticated(): bool
