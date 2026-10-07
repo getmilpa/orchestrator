@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/getmilpa/orchestrator/compare/v0.15.0...v0.16.0) (2026-10-07)
+
+
+### Features
+
+* a waiting decision says where each option leads, and who may take it ([#42](https://github.com/getmilpa/orchestrator/issues/42)) ([bdfa539](https://github.com/getmilpa/orchestrator/commit/bdfa539735c3bf6f118109e80acf36503a01852a))
+
 ## [0.15.0](https://github.com/getmilpa/orchestrator/compare/v0.14.0...v0.15.0) (2026-10-07)
 
 
