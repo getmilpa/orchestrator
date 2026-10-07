@@ -18,6 +18,7 @@ use Milpa\Command\Declaration\Because;
 use Milpa\Command\Declaration\Operation;
 use Milpa\Command\Declaration\Reads;
 use Milpa\Command\Declaration\Target;
+use Milpa\Orchestrator\Declaration\CallRefused;
 use Milpa\Orchestrator\Declaration\GraphRuns;
 
 /** Where one run stands, and everything its nodes have written into it. */
@@ -41,6 +42,10 @@ final readonly class ShowGraphRun
      */
     public function run(GraphRuns $runs): array
     {
-        return $runs->show($this->graph, $this->instance);
+        try {
+            return $runs->show($this->graph, $this->instance);
+        } catch (CallRefused $refused) {
+            return $refused->answer();
+        }
     }
 }

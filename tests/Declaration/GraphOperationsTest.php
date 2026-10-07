@@ -132,25 +132,26 @@ final class GraphOperationsTest extends TestCase
     {
         $started = $this->start([Verdict::Passed]);
 
-        $this->expectException(GraphDeclarationException::class);
-        $this->expectExceptionMessageMatches('/is not waiting for a decision/');
-
-        ($this->operation(DecideGraph::class)->handler)([
+        $refused = ($this->operation(DecideGraph::class)->handler)([
             'graph' => 'essay:review',
             'instance' => $started['instance_id'],
             'decision' => 'abandon',
         ], self::verified('editor'));
+
+        // Answered, not thrown: to whoever calls it is the house saying no (greenhouse decisions/0583).
+        self::assertFalse($refused['ok'] ?? true);
+        self::assertMatchesRegularExpression('/is not waiting for a decision/', (string) ($refused['error'] ?? ''));
     }
 
     public function testStartingChannelsThatAreNotAJsonObjectAreRefusedByName(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/must be a JSON object of starting channels/');
-
-        ($this->operation(StartGraph::class)->handler)([
+        $refused = ($this->operation(StartGraph::class)->handler)([
             'graph' => 'essay:review',
             'inputs' => 'not json at all',
         ], self::verified('rod'));
+
+        self::assertFalse($refused['ok'] ?? true);
+        self::assertMatchesRegularExpression('/must be a JSON object of starting channels/', (string) ($refused['error'] ?? ''));
     }
 
     public function testTheRegistryRefusesAClassThatIsNotAGraphAndANameWithTwoOwners(): void

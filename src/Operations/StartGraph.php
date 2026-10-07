@@ -26,6 +26,7 @@ use Milpa\Command\Effect\Reversibility;
 use Milpa\Command\Effect\Subject;
 use Milpa\Command\InvocationContext;
 use Milpa\Orchestrator\Declaration\Caller;
+use Milpa\Orchestrator\Declaration\CallRefused;
 use Milpa\Orchestrator\Declaration\GraphRuns;
 
 /**
@@ -87,7 +88,11 @@ final readonly class StartGraph
      */
     public function runAs(GraphRuns $runs, Caller $caller): array
     {
-        return $runs->start($this->graph, $this->decoded(), $caller->requester(), $caller);
+        try {
+            return $runs->start($this->graph, $this->decoded(), $caller->requester(), $caller);
+        } catch (CallRefused $refused) {
+            return $refused->answer();
+        }
     }
 
     /**
@@ -105,7 +110,7 @@ final readonly class StartGraph
         $decoded = json_decode($this->inputs, true);
 
         if (!\is_array($decoded)) {
-            throw new \InvalidArgumentException(
+            throw new CallRefused(
                 "graph:start: `inputs` must be a JSON object of starting channels, and this is not one: {$this->inputs}"
             );
         }

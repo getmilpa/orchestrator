@@ -254,6 +254,22 @@ resumes, and only if that caller holds what it declares.** It asks for `graph:ru
 The trail says all of it, in order: `refused` by the first caller, `resumed` by the second, `ran` by
 the second.
 
+### A call the house refuses is answered, not thrown
+
+Some refusals were results from the start — a node its caller may not run, an answer that was not
+recorded, a gate its own opener tried to approve. The rest are now results too: `graph:start`,
+`graph:decide`, `graph:resume` and `graph:show` answer `{ok: false, error: "…"}` when the call names
+a graph this app does not declare, a run that is not a run of that graph or does not exist, a run that
+is not where the call needs it (not waiting, waiting, finished, not parked by a refusal), an answer the
+gate never offered, or starting inputs that are not a JSON object. Nothing is written for any of them.
+
+It matters on the surfaces: a thrown refusal is a failure to them. Over HTTP it was a 500
+`internal_error` whose sentence stayed in the log; answered, the sentence reaches whoever called.
+
+`GraphRuns` still throws — `CallRefused`, a `GraphDeclarationException` — for a host that drives the
+engine itself. And a graph that does not **compile** is still thrown through everything: that is the
+app's mistake, not the caller's, and no operation answers for it.
+
 Those records are the engine's to write, and three rules keep them so:
 
 - **The starting inputs are the graph's channels and nothing else.** `graph:start` keeps only the

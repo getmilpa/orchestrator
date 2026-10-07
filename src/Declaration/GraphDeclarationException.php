@@ -16,7 +16,10 @@ namespace Milpa\Orchestrator\Declaration;
 
 /**
  * A graph that cannot be compiled without guessing — refused, naming the class and what to declare.
+ *
+ * It is the APP's mistake, and it is let out as a failure. What a CALLER got wrong — a graph nobody declared, a run
+ * that is not where the call needs it — is its one subclass, {@see CallRefused}, which the operations answer.
  */
-final class GraphDeclarationException extends \InvalidArgumentException
+class GraphDeclarationException extends \InvalidArgumentException
 {
 }

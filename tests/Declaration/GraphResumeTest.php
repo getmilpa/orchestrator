@@ -29,7 +29,6 @@ use Milpa\Http\Routing\RouteResult;
 use Milpa\Interfaces\Di\DIContainerInterface;
 use Milpa\Orchestrator\Declaration\Caller;
 use Milpa\Orchestrator\Declaration\DeclaredGraph;
-use Milpa\Orchestrator\Declaration\GraphDeclarationException;
 use Milpa\Orchestrator\Declaration\GraphRegistry;
 use Milpa\Orchestrator\Declaration\GraphRuns;
 use Milpa\Orchestrator\HumanGate;
@@ -210,12 +209,9 @@ final class GraphResumeTest extends TestCase
         self::assertSame('signoff_gate', $started['awaiting'] ?? null, (string) json_encode($started));
         $before = $this->events();
 
-        try {
-            $this->resume('memo:clearance', $started, self::verified('actor:rod'), self::holding('rod', '*'));
-            self::fail('a run that waits for a decision was resumed');
-        } catch (GraphDeclarationException $refused) {
-            self::assertStringContainsString('is waiting for a decision: answer it with graph:decide', $refused->getMessage());
-        }
+        $refused = $this->resume('memo:clearance', $started, self::verified('actor:rod'), self::holding('rod', '*'));
+        self::assertFalse($refused['ok'] ?? true, 'a run that waits for a decision was resumed');
+        self::assertStringContainsString('is waiting for a decision: answer it with graph:decide', (string) ($refused['error'] ?? ''));
 
         self::assertSame($before, $this->events(), 'nothing was written');
         self::assertCount(1, $this->runs->pending());
@@ -232,12 +228,9 @@ final class GraphResumeTest extends TestCase
         $before = $this->events();
 
         // Somebody who may release memos, and may not decide: resuming is not how the clerk's answer gets taken.
-        try {
-            $this->resume('memo:clearance', $started, self::verified('actor:officer'), self::holding('officer', 'graph:run', 'memo:release'));
-            self::fail('a run that waits for a decision was resumed');
-        } catch (GraphDeclarationException $refused) {
-            self::assertStringContainsString('is waiting for a decision: answer it with graph:decide', $refused->getMessage());
-        }
+        $refused = $this->resume('memo:clearance', $started, self::verified('actor:officer'), self::holding('officer', 'graph:run', 'memo:release'));
+        self::assertFalse($refused['ok'] ?? true, 'a run that waits for a decision was resumed');
+        self::assertStringContainsString('is waiting for a decision: answer it with graph:decide', (string) ($refused['error'] ?? ''));
 
         self::assertSame($before, $this->events(), 'nothing was written');
         self::assertNull($this->channel('memo:clearance', $started, 'releasedBy'));
@@ -250,12 +243,9 @@ final class GraphResumeTest extends TestCase
         self::assertSame('release_done', $finished['state'] ?? null, (string) json_encode($finished));
         $before = $this->events();
 
-        try {
-            $this->resume('memo:clearance', $finished, self::verified('actor:rod'), self::holding('rod', '*'));
-            self::fail('a finished run was resumed');
-        } catch (GraphDeclarationException $refused) {
-            self::assertStringContainsString('has finished', $refused->getMessage());
-        }
+        $refused = $this->resume('memo:clearance', $finished, self::verified('actor:rod'), self::holding('rod', '*'));
+        self::assertFalse($refused['ok'] ?? true, 'a finished run was resumed');
+        self::assertStringContainsString('has finished', (string) ($refused['error'] ?? ''));
 
         self::assertSame($before, $this->events(), 'nothing was written');
     }
@@ -267,12 +257,9 @@ final class GraphResumeTest extends TestCase
         self::assertSame('jam', $this->runs->show('memo:jammed', $instance)['state']);
         $before = $this->events();
 
-        try {
-            $this->resume('memo:jammed', ['instance_id' => $instance], self::verified('actor:printer'), self::holding('printer', '*'));
-            self::fail('a run that stopped on a node that broke was resumed — a node that may have done half its work, run again');
-        } catch (GraphDeclarationException $refused) {
-            self::assertStringContainsString('is not parked by a refused node', $refused->getMessage());
-        }
+        $refused = $this->resume('memo:jammed', ['instance_id' => $instance], self::verified('actor:printer'), self::holding('printer', '*'));
+        self::assertFalse($refused['ok'] ?? true, 'a run that stopped on a node that broke was resumed — a node that may have done half its work, run again');
+        self::assertStringContainsString('is not parked by a refused node', (string) ($refused['error'] ?? ''));
 
         self::assertSame($before, $this->events(), 'nothing was written');
     }
@@ -291,12 +278,9 @@ final class GraphResumeTest extends TestCase
         }
 
         // The run is no longer parked by a refusal: it is a run whose node broke, and resuming is not a retry.
-        try {
-            $this->resume('memo:jammed', $parked, self::verified('actor:printer'), self::holding('printer', 'graph:run', 'memo:print'));
-            self::fail('a node that broke after a resume was run again');
-        } catch (GraphDeclarationException $refused) {
-            self::assertStringContainsString('is not parked by a refused node', $refused->getMessage());
-        }
+        $refused = $this->resume('memo:jammed', $parked, self::verified('actor:printer'), self::holding('printer', 'graph:run', 'memo:print'));
+        self::assertFalse($refused['ok'] ?? true, 'a node that broke after a resume was run again');
+        self::assertStringContainsString('is not parked by a refused node', (string) ($refused['error'] ?? ''));
 
         self::assertSame(
             [['ran', 'prepare', 'actor:clerk'], ['refused', 'jam', 'actor:clerk'], ['resumed', 'jam', 'actor:printer']],
@@ -320,12 +304,9 @@ final class GraphResumeTest extends TestCase
         foreach ([$started, 'written-by-hand'] as $instance) {
             self::assertSame('vet', $this->runs->show('memo:vetted', $instance)['state']);
 
-            try {
-                $this->resume('memo:vetted', ['instance_id' => $instance], self::verified('actor:rod'), self::holding('rod', '*'));
-                self::fail('a run nobody was refused was resumed');
-            } catch (GraphDeclarationException $refused) {
-                self::assertStringContainsString('is not parked by a refused node', $refused->getMessage());
-            }
+            $refused = $this->resume('memo:vetted', ['instance_id' => $instance], self::verified('actor:rod'), self::holding('rod', '*'));
+            self::assertFalse($refused['ok'] ?? true, 'a run nobody was refused was resumed');
+            self::assertStringContainsString('is not parked by a refused node', (string) ($refused['error'] ?? ''));
 
             self::assertSame([], $this->trail('memo:vetted', ['instance_id' => $instance]));
         }
@@ -439,12 +420,9 @@ final class GraphResumeTest extends TestCase
         $before = $this->events();
 
         // open:clearance has the same shape and a release anybody may run. Whose nodes are judged is the run's own.
-        try {
-            $this->resume('open:clearance', $parked, self::verified('actor:clerk'), self::holding('clerk', 'graph:run'));
-            self::fail('a run was resumed under the name of another graph');
-        } catch (GraphDeclarationException $refused) {
-            self::assertStringContainsString("is not a run of 'open:clearance'", $refused->getMessage());
-        }
+        $refused = $this->resume('open:clearance', $parked, self::verified('actor:clerk'), self::holding('clerk', 'graph:run'));
+        self::assertFalse($refused['ok'] ?? true, 'a run was resumed under the name of another graph');
+        self::assertStringContainsString("is not a run of 'open:clearance'", (string) ($refused['error'] ?? ''));
 
         self::assertSame($before, $this->events(), 'nothing was written');
     }
