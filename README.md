@@ -141,8 +141,8 @@ $runner->advance($store, $instance, $gate, 'process');
 ```
 
 An app does not write those lines: it lists `GraphOperations` in its `config/operations.php` and
-reaches every graph through `graph:start`, `graph:decide`, `graph:pending`, `graph:show` and
-`graph:list`, which hand the caller over for it.
+reaches every graph through `graph:start`, `graph:decide`, `graph:resume`, `graph:pending`,
+`graph:show` and `graph:list`, which hand the caller over for it.
 
 ### The enum cases are the edges
 
@@ -201,8 +201,34 @@ The second row is judged BEFORE the answer is written: an answer that leads stra
 approver may not run would spend the gate and leave the run somewhere nobody can continue it.
 
 Who ran each node is in the log, in the same event that carries what the node wrote, and so is every
-refusal. `graph:show` returns it in order as `trail` — `{node, operation, outcome: ran|refused, by:
-{actor, verified, channel, principal, authorization}}` — with who was driving, never what they held.
+refusal. `graph:show` returns it in order as `trail` — `{node, operation, outcome: ran|refused|resumed,
+by: {actor, verified, channel, principal, authorization}}` — with who was driving, never what they held.
+
+### A run parked by a refused node is resumed by a caller who may run it
+
+A node refused BEFORE any gate, or as the second node after one, leaves the run parked at that node
+with no gate waiting — so there is nothing to answer. `graph:resume {graph, instance}` is one more
+invocation that reaches the node, and the rule above is the whole of it: **the node runs as whoever
+resumes, and only if that caller holds what it declares.** It asks for `graph:run`, like the start.
+
+| the run | `graph:resume` |
+|---|---|
+| parked at a node its last caller was refused | the node is judged for THIS caller: it runs and the run goes on, or it is refused again — under this caller's name — and the run stays where it was |
+| waiting for a decision | refused: answer it with `graph:decide`. Resuming answers nothing, also when the last thing the log says is that an answer was not recorded |
+| stopped because a node threw | refused: that node was reached and may have done half its work, and resuming is not a retry |
+| finished | refused |
+
+- **It takes which run, and nothing else.** No answer, no inputs: an answer already recorded stays
+  as it was given, by whoever gave it, and the nodes that ran after it are not run again.
+- **Nothing about authority was kept for it.** Not the scopes of whoever started the run, and not
+  those of whoever answered its gate.
+- **A resume is spent once it is taken.** The log says `RunResumed` before the node runs; if the
+  node then throws, the run is no longer parked by a refusal.
+- **Whoever started the run is still the one its gates record**, so resuming one's own run is no
+  way to approve it. Whoever resumes somebody else's run does not become its requester.
+
+The trail says all of it, in order: `refused` by the first caller, `resumed` by the second, `ran` by
+the second.
 
 Those records are the engine's to write, and three rules keep them so:
 
@@ -211,9 +237,9 @@ Those records are the engine's to write, and three rules keep them so:
   that a loop budget is already spent, or that this run is the child of another one.
 - **A leading underscore is the engine's.** A graph that declares a channel named `_taken`, `_ran`
   or any `_…` is refused at compile time.
-- **A run is answered and shown as a run of the graph it was started as.** `graph:decide` and
-  `graph:show` refuse an instance named under another graph: whose nodes are judged is what the
-  run's own log says, not what the call says.
+- **A run is answered, resumed and shown as a run of the graph it was started as.** `graph:decide`,
+  `graph:resume` and `graph:show` refuse an instance named under another graph: whose nodes are
+  judged is what the run's own log says, not what the call says.
 
 One limit, said rather than hidden: a node typed by a **permission** (`#[Needs(permission: …)]`)
 needs a policy this engine does not have, so only a caller holding the wildcard `*` runs it; a

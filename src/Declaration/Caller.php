@@ -97,6 +97,22 @@ final readonly class Caller
     }
 
     /**
+     * The name a run keeps for whoever asked for it: the actor the surface verified, or — when it verified nobody —
+     * the door the call came through.
+     *
+     * A name is not taken on the caller's word. An actor nobody verified is whatever the call says it is, and this
+     * is the name a gate later refuses to be approved by.
+     */
+    public function requester(): string
+    {
+        if ($this->context !== null && $this->context->isAttributable()) {
+            return (string) $this->context->actor;
+        }
+
+        return 'unverified:' . ($this->context === null ? 'unknown' : $this->context->channel);
+    }
+
+    /**
      * What the log keeps about who ran a node: who, by which door, under which authorizing decision — never what
      * the caller holds.
      *

@@ -87,17 +87,7 @@ final readonly class StartGraph
      */
     public function runAs(GraphRuns $runs, Caller $caller): array
     {
-        return $runs->start($this->graph, $this->decoded(), self::requester($caller->context), $caller);
-    }
-
-    /** Who is asking, as the surface attributed it: the verified actor, or the channel it came in unverified. */
-    private static function requester(?InvocationContext $context): string
-    {
-        if ($context !== null && $context->isAttributable()) {
-            return (string) $context->actor;
-        }
-
-        return 'unverified:' . ($context === null ? 'unknown' : $context->channel);
+        return $runs->start($this->graph, $this->decoded(), $caller->requester(), $caller);
     }
 
     /**

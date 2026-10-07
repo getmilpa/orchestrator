@@ -312,10 +312,11 @@ final class DeclaredGraph
             }
             $name = $parameter->getName();
 
-            // A LEADING UNDERSCORE IS THE ENGINE'S. `_taken` counts a loop budget, `_ran` and `_refused` say who ran
-            // a node and who was refused one, `_requester` and `_definition` say whose run it is and of what. A
-            // channel is what the starting inputs seed and what a node's result writes — under one of those names,
-            // either could spend a budget before the first round or rewrite who did what.
+            // A LEADING UNDERSCORE IS THE ENGINE'S. `_taken` counts a loop budget, `_ran`, `_refused` and `_resumed`
+            // say who ran a node, who was refused one and who resumed the run at one, `_requester` and `_definition`
+            // say whose run it is and of what. A channel is what the starting inputs seed and what a node's result
+            // writes — under one of those names, either could spend a budget before the first round or rewrite who
+            // did what.
             if (str_starts_with($name, '_')) {
                 throw new GraphDeclarationException(
                     "Graph {$class} declares the channel '{$name}'. Names that start with an underscore are kept for what the engine writes about a run — rename the channel."

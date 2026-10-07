@@ -41,6 +41,9 @@ use Milpa\Workflow\Exceptions\TransitionNotAllowedException;
  * the approver's is not lent back to the starter: nothing about authority is ever written to the log or read from
  * it. What the log keeps is who ran each node and who was refused one ({@see self::show()}'s `trail`), so a run that
  * changed hands at a gate says so.
+ *
+ * A run whose caller could not run the next node parks there, and {@see self::resume()} is one more invocation that
+ * reaches that node: it runs as whoever resumes, under the same rule.
  */
 final class GraphRuns
 {
@@ -49,6 +52,12 @@ final class GraphRuns
 
     /** The reserved key under which that event says which node was refused, what it needed, and who was driving. */
     public const string REFUSED = '_refused';
+
+    /** The event a resume leaves in the run's log before the refused node runs. It matches no transition either. */
+    public const string RUN_RESUMED = 'RunResumed';
+
+    /** The reserved key under which that event says at which node the run was resumed, and who resumed it. */
+    public const string RESUMED = '_resumed';
 
     private readonly ProcessDefinitionRegistry $definitions;
 
@@ -206,12 +215,73 @@ final class GraphRuns
     }
 
     /**
+     * Carries on a run that parked because its caller could not run the next node — as the caller who resumes it.
+     *
+     * ONLY A RUN PARKED BY A REFUSAL. The last thing its log says has to be that the node it stands on was refused.
+     * A run waiting for a decision is answered, not resumed — also when what its log says last is that an answer was
+     * not recorded: resuming gives nobody's answer. A finished run has nothing left. And a run that stopped because a
+     * node BROKE was never refused: that node was reached and may have done half its work, so running it again is
+     * not this operation's to decide.
+     *
+     * THE NODE RUNS AS WHOEVER RESUMES, judged against what this call holds — never against what whoever started the
+     * run or answered its gate held, none of which was kept. A caller who may not run it either has resumed nothing:
+     * the log gains that refusal and the run stays where it was.
+     *
+     * A RESUME IS SPENT ONCE IT IS TAKEN. The log says {@see self::RUN_RESUMED} before the node runs, so the run is
+     * no longer parked by a refusal; if the node then breaks, this is not the way to run it a second time.
+     *
+     * WHO ASKED FOR THE RUN DOES NOT CHANGE. Every gate the run opens from here still records whoever started it, so
+     * that one still cannot approve it — whoever resumes. Only a run whose log names nobody takes the caller who
+     * resumes it as the one who asked.
+     *
+     * @param Caller|null $caller who is resuming it, with the authority the surface verified — the nodes from here to
+     *                            the next gate run as this caller
+     *
+     * @return array{instance_id: string, state: string, awaiting: ?string, ok?: false, error?: string, refused?: array<string, mixed>}
+     *
+     * @throws GraphDeclarationException when the run is not a run of this graph, or is not parked by a refused node
+     */
+    public function resume(string $name, string $instanceId, ?Caller $caller = null): array
+    {
+        $graph = $this->register($name);
+        $caller ??= new Caller();
+        $instance = $this->runOf($graph, $instanceId);
+        $state = $instance->currentState($this->store);
+
+        if ($this->refusedAt($instance) !== $state) {
+            throw new GraphDeclarationException(match (true) {
+                $graph->definition->isTerminal($state) => "Run '{$instanceId}' has finished: there is nothing to resume.",
+                $graph->definition->gateFor($state) !== null => "Run '{$instanceId}' is waiting for a decision: answer it with graph:decide. Resuming a run answers nothing.",
+                default => "Run '{$instanceId}' is not parked by a refused node: graph:resume carries on only a run whose next node its caller was not allowed to run.",
+            });
+        }
+
+        $node = $graph->operations[$state];
+        $why = $caller->refusalOf($node);
+
+        if ($why !== null) {
+            return $this->refused($instance, NodeRefused::at($state, $node, $why), $caller);
+        }
+
+        $this->store->append(new Event(
+            $instanceId,
+            self::RUN_RESUMED,
+            [self::RESUMED => ['node' => $state, 'operation' => $node->name, 'by' => $caller->record()]],
+            $this->store->nextSeq(),
+        ));
+
+        $requester = (string) ($instance->context($this->store)['_requester'] ?? $caller->requester());
+
+        return $this->advance($graph, $instance, $requester, $caller);
+    }
+
+    /**
      * Where a run stands, everything it has accumulated, and who ran each of its nodes.
      *
-     * The `trail` is read off the log, in order: one row per node that ran or was refused, with `outcome` (`ran` or
-     * `refused`), the `node` and its `operation`, and `by` — who was driving the run at that moment
-     * ({@see Caller::record()}). A refusal also carries what the node `needs`, and the gate `answer` that was not
-     * taken when that is what was refused.
+     * The `trail` is read off the log, in order: one row per node that ran, was refused, or was resumed at, with
+     * `outcome` (`ran`, `refused` or `resumed`), the `node` and its `operation`, and `by` — who was driving the run
+     * at that moment ({@see Caller::record()}). A refusal also carries what the node `needs`, and the gate `answer`
+     * that was not taken when that is what was refused.
      *
      * @return array{instance_id: string, state: string, awaiting: ?string, context: array<string, mixed>, trail: list<array<string, mixed>>}
      *
@@ -246,6 +316,20 @@ final class GraphRuns
         }
 
         return new ProcessInstance($instanceId, $graph->definition);
+    }
+
+    /**
+     * The node the LAST event of the run's log says was refused — `null` when the log ends in anything else.
+     *
+     * Read from the event the engine appends for a refusal and from nothing else: not from how the run was started,
+     * whose payload is the starter's own, and not from a refusal that something has happened after.
+     */
+    private function refusedAt(ProcessInstance $instance): ?string
+    {
+        $events = $this->store->replay($instance->instanceId);
+        $last = end($events);
+
+        return $last instanceof Event && $last->type === self::NODE_REFUSED ? ($last->payload[self::REFUSED]['node'] ?? null) : null;
     }
 
     /**
@@ -316,7 +400,8 @@ final class GraphRuns
     }
 
     /**
-     * Which node ran or was refused, in order, and who was driving the run each time — read off the log.
+     * Which node ran, was refused or was resumed at, in order, and who was driving the run each time — read off the
+     * log.
      *
      * @return list<array<string, mixed>>
      */
@@ -327,7 +412,11 @@ final class GraphRuns
         foreach ($this->store->replay($instance->instanceId) as $event) {
             // Read only from the events the engine itself appends: a refusal from its own event, a node's record
             // from a step of the run — never from `ProcessStarted`, whose payload is whatever the run was started with.
-            [$key, $outcome] = $event->type === self::NODE_REFUSED ? [self::REFUSED, 'refused'] : [NodeInvoker::RAN, 'ran'];
+            [$key, $outcome] = match ($event->type) {
+                self::NODE_REFUSED => [self::REFUSED, 'refused'],
+                self::RUN_RESUMED => [self::RESUMED, 'resumed'],
+                default => [NodeInvoker::RAN, 'ran'],
+            };
 
             if ($event->type !== 'ProcessStarted' && \is_array($event->payload[$key] ?? null)) {
                 $trail[] = ['seq' => $event->seq, 'outcome' => $outcome] + $event->payload[$key];
