@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/getmilpa/orchestrator/compare/v0.14.0...v0.15.0) (2026-10-07)
+
+
+### Features
+
+* a run parked by a refused node is carried on by a caller who may run it (graph:resume) ([#38](https://github.com/getmilpa/orchestrator/issues/38)) ([2c93b87](https://github.com/getmilpa/orchestrator/commit/2c93b8758e0f6577dcd3f7b4fab2b3f0cc1c8669))
+
 ## [0.14.0](https://github.com/getmilpa/orchestrator/compare/v0.13.0...v0.14.0) (2026-10-07)
 
 
