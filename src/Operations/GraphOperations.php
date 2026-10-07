@@ -42,7 +42,7 @@ final class GraphOperations implements CommandProvider
     }
 
     /**
-     * The five graph operations, each projected to every surface this app exposes.
+     * The six graph operations, each projected to every surface this app exposes.
      *
      * @return list<Operation>
      */
@@ -55,6 +55,7 @@ final class GraphOperations implements CommandProvider
             $this->driving(StartGraph::class, $resolve),
             DeclaredOperation::from(PendingDecisions::class, $resolve),
             $this->driving(DecideGraph::class, $resolve),
+            $this->driving(ResumeGraph::class, $resolve),
             DeclaredOperation::from(ShowGraphRun::class, $resolve),
         ];
     }
@@ -68,7 +69,7 @@ final class GraphOperations implements CommandProvider
      * originates further governed calls, one per node — so its handler takes the third argument every surface
      * passes, and hands both to the run as its {@see Caller}.
      *
-     * @param class-string<StartGraph|DecideGraph> $class
+     * @param class-string<StartGraph|DecideGraph|ResumeGraph> $class
      */
     private function driving(string $class, \Closure $resolve): Operation
     {
