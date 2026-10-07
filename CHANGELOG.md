@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.14.0](https://github.com/getmilpa/orchestrator/compare/v0.13.0...v0.14.0) (2026-10-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* a graph node that declares #[Needs] no longer runs unless the caller driving the run holds one of its scopes (for a permission, the wildcard). A call that carries no authority — the TUI, a CliRunner given neither callerAuthority nor signerAuthority, a handler derived with DeclaredOperation::from(StartGraph|DecideGraph), `new NodeInvoker($graph)` or GraphRuns::start()/decide() without a Caller — runs only the nodes that declare none. graph:start and graph:decide answer `ok: false` with the run parked at the refused node; graph:decide does not record an answer leading straight to a node its approver may not run; nodes after a gate run as whoever answered it. NodeInvoker::invoke() throws NodeRefused for a host driving ProcessRunner itself. graph:start keeps only the starting inputs that are channels of the graph, and a graph declaring a channel whose name starts with `_` no longer compiles. graph:decide and graph:show refuse an instance that was not started as the graph they are given, an unknown instance included. An instance naming a parent that never recorded starting it no longer routes its outcome there.
+
+### Bug Fixes
+
+* a graph node runs as its caller, and only if that caller holds what it declares ([#36](https://github.com/getmilpa/orchestrator/issues/36)) ([77099ee](https://github.com/getmilpa/orchestrator/commit/77099eeaef1d93a4f4c6aa039c8c5c92eab6b86f))
+
 ## [0.13.0](https://github.com/getmilpa/orchestrator/compare/v0.12.0...v0.13.0) (2026-09-29)
 
 
