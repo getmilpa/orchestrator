@@ -104,7 +104,7 @@ final readonly class DecideGraph
         } catch (SelfApprovalException) {
             return [
                 'ok' => false,
-                'error' => "{$context->actor} opened this gate, so it cannot approve it: the work and its approval need two different people.",
+                'error' => sprintf(GraphRuns::OWN_GATE, $context->actor) . '.',
             ];
         }
     }

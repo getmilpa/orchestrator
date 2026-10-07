@@ -58,6 +58,9 @@ final class GraphRuns
     /** The reserved key under which that event says at which node the run was resumed, and who resumed it. */
     public const string RESUMED = '_resumed';
 
+    /** Why whoever started a run may not approve it — one sentence, said before the answer and at it. */
+    public const string OWN_GATE = '%s opened this gate, so it cannot approve it: the work and its approval need two different people';
+
     private readonly ProcessDefinitionRegistry $definitions;
 
     public function __construct(
@@ -139,9 +142,29 @@ final class GraphRuns
      * Each row also says WHICH graph it belongs to and WHO started the run, which the engine's own row
      * does not carry — and without them a surface can list a decision it cannot answer.
      *
+     * ── WHERE EACH OPTION LEADS, AND WHO MAY TAKE IT ────────────────────────────────────────────────────────────────
+     *
+     * Each row carries `choices`: for every option, the node it leads to (`leads_to`, `operation`) and what that node
+     * declares it needs (`needs`). Given a `$viewer`, each choice also says whether THAT caller may take it (`may`)
+     * and, when not, why — as one sentence (`why_not`) and as the rule that refused it (`because`: `unverified`,
+     * `needs` or `requester`), so a surface can say it in its own words; and the row says who is looking (`viewer`:
+     * whether they are the one who started the run, and whether the surface verified them). An option was otherwise
+     * a bare name, and whether it could be taken was found out by pressing it (greenhouse decisions/0584).
+     *
+     * IT IS THE ENGINE THAT SAYS IT, in the order and with the rule {@see self::decide()} refuses an answer by — so a
+     * surface paints what it is told and keeps no judgement of its own to drift. What it does NOT say is whether the
+     * viewer may reach `graph:decide` at all: that is the door's, judged by the policy of the surface.
+     *
+     * IT IS INFORMATION. Nothing is written — a refusal is a line in the log only when an ANSWER is refused — and
+     * what a viewer holds is never said back. `graph:decide` judges every answer as it always did, whatever a
+     * surface showed.
+     *
+     * @param Caller|null $viewer who is looking, with the authority the surface verified — null says nothing about
+     *                            anybody
+     *
      * @return list<array<string, mixed>>
      */
-    public function pending(): array
+    public function pending(?Caller $viewer = null): array
     {
         foreach ($this->graphs->names() as $name) {
             $this->register($name);
@@ -170,9 +193,55 @@ final class GraphRuns
 
             $rows[$index]['graph'] = (string) ($context['_definition'] ?? '');
             $rows[$index]['requester'] = (string) ($context['_requester'] ?? '');
+            $rows[$index] += $this->choicesOf($rows[$index], $viewer);
         }
 
         return $rows;
+    }
+
+    /**
+     * Where each option of one waiting decision leads, and — to a viewer — whether they may take it.
+     *
+     * The order is {@see self::decide()}'s: a caller nobody verified answers nothing; then the node the option leads
+     * to is judged, as it is before an answer is recorded; then whoever started the run, who may approve none of it.
+     * Only the FIRST node is said, as only the first is judged ahead: what follows it depends on what it returns.
+     *
+     * @param array<string, mixed> $row the decision, with its `graph`, `instance_id`, `options` and `requester`
+     *
+     * @return array{choices: list<array<string, mixed>>, viewer?: array{is_requester: bool, verified: bool}}
+     */
+    private function choicesOf(array $row, ?Caller $viewer): array
+    {
+        $graph = $this->graphs->get((string) $row['graph']);
+        $state = (new ProcessInstance((string) $row['instance_id'], $graph->definition))->currentState($this->store);
+        $leads = array_column($graph->definition->transitionsFrom($state), 'to', 'name');
+
+        $actor = $viewer?->context?->actor;
+        $verified = $viewer?->context?->isAttributable() ?? false;
+        $isRequester = $verified && $actor === $row['requester'];
+
+        $choices = [];
+        /** @var string $option */
+        foreach ($row['options'] as $option) {
+            $to = $leads[$option];
+            $node = $graph->operations[$to] ?? null;
+            $choice = ['option' => $option, 'leads_to' => $to, 'operation' => $node?->name, 'needs' => $node === null ? [] : NodeRefused::needsOf($node)];
+
+            if ($viewer !== null) {
+                $refusal = $node === null ? null : $viewer->refusalOf($node);
+                [$because, $why] = match (true) {
+                    !$verified => ['unverified', 'a gate is answered by a verified actor — a passkey session or a signed call — and whoever is looking is not one'],
+                    $node !== null && $refusal !== null => ['needs', NodeRefused::leadsTo($to, $node, $refusal)],
+                    $isRequester => ['requester', sprintf(self::OWN_GATE, $actor)],
+                    default => [null, null],
+                };
+                $choice += ['may' => $why === null, 'because' => $because, 'why_not' => $why];
+            }
+
+            $choices[] = $choice;
+        }
+
+        return ['choices' => $choices] + ($viewer === null ? [] : ['viewer' => ['is_requester' => $isRequester, 'verified' => $verified]]);
     }
 
     /**

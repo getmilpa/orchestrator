@@ -204,6 +204,30 @@ Who ran each node is in the log, in the same event that carries what the node wr
 refusal. `graph:show` returns it in order as `trail` — `{node, operation, outcome: ran|refused|resumed,
 by: {actor, verified, channel, principal, authorization}}` — with who was driving, never what they held.
 
+### A waiting decision says where each option leads, and who may take it
+
+`graph:pending` — and `GraphRuns::pending()` behind it — lists each waiting decision with `choices`:
+for every option, the node it leads to (`leads_to`, `operation`) and what that node declares it needs
+(`needs`). An option used to be a bare name, and whether it could be taken was found out by pressing it.
+
+A surface that knows who is looking passes that caller — `pending($viewer)` — and each choice also
+says `may` and, when not, `why_not` (the sentence) and `because` (the rule: `unverified`, `needs` or
+`requester`); the row says `viewer: {is_requester, verified}`:
+
+| who is looking | an option whose node needs a scope they lack | any other option |
+|---|---|---|
+| a verified caller | `may: false` — *it leads to the node 'publish' (essay:publish), and it needs the scope essay:publish, which actor:clerk does not hold* | `may: true` |
+| whoever started the run | the same | `may: false` — *… opened this gate, so it cannot approve it* |
+| a caller nobody verified | `may: false` — *a gate is answered by a verified actor* | the same |
+
+**It is the engine that says it**, in the order and with the rule `graph:decide` refuses an answer by,
+so a surface paints what it is told and keeps no judgement of its own to drift. Only the first node an
+option leads to is said, as only the first is judged before an answer is recorded.
+
+**It is information.** Nothing is written, what the viewer holds is never said back, and it does not
+say whether the viewer may reach `graph:decide` at all — that is the door's. `graph:decide` judges
+every answer as it always did, whatever a surface showed.
+
 ### A run parked by a refused node is resumed by a caller who may run it
 
 A node refused BEFORE any gate, or as the second node after one, leaves the run parked at that node

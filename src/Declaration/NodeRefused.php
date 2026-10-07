@@ -68,13 +68,28 @@ final class NodeRefused extends \RuntimeException
             $state,
             $node->name,
             self::needsOf($node),
-            "The answer '{$decision}' was not recorded: it leads to the node '{$state}' ({$node->name}), and {$why}. The gate is still waiting.",
+            "The answer '{$decision}' was not recorded: " . self::leadsTo($state, $node, $why) . '. The gate is still waiting.',
             $decision,
         );
     }
 
-    /** @return list<string> */
-    private static function needsOf(Operation $node): array
+    /**
+     * Why an option that leads to `$state` cannot be taken by a caller who may not run its node — the same words
+     * whether it is said BEFORE anybody answers ({@see GraphRuns::pending()}) or when an answer is refused.
+     *
+     * @param string $why the fragment {@see Caller::refusalOf()} gave — «it needs …»
+     */
+    public static function leadsTo(string $state, Operation $node, string $why): string
+    {
+        return "it leads to the node '{$state}' ({$node->name}), and {$why}";
+    }
+
+    /**
+     * What a node declared it needs: its scopes, or its one permission.
+     *
+     * @return list<string>
+     */
+    public static function needsOf(Operation $node): array
     {
         return $node->permission !== null ? [$node->permission] : $node->scopes;
     }
