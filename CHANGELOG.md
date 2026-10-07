@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.17.0](https://github.com/getmilpa/orchestrator/compare/v0.16.0...v0.17.0) (2026-10-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* a call the graph operations refuse is answered, not thrown ([#41](https://github.com/getmilpa/orchestrator/issues/41))
+
+### Bug Fixes
+
+* a call the graph operations refuse is answered, not thrown ([#41](https://github.com/getmilpa/orchestrator/issues/41)) ([94d5ca5](https://github.com/getmilpa/orchestrator/commit/94d5ca52e8f0de76c5a72d9c5b8d9d6f40e9b068))
+
 ## [0.16.0](https://github.com/getmilpa/orchestrator/compare/v0.15.0...v0.16.0) (2026-10-07)
 
 
