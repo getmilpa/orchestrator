@@ -182,10 +182,10 @@ final class GraphDecideAuthorityTest extends TestCase
     public function testAnUnattributedCallerCannotAnswerAGateAtAll(): void
     {
         $runner = new OperationRunner($this->container);
-        $started = $runner->run($this->operations['graph:start'], ['graph' => 'essay:review', 'inputs' => $this->inputs()], 'cli', InvocationContext::cli('rod@host'));
+        $started = $runner->run($this->operations['graph:start'], ['graph' => 'essay:review', 'inputs' => $this->inputs()], 'cli', InvocationContext::cli('operator@example.com'));
         $instance = (string) $started['instance_id'];
 
-        foreach ([null, InvocationContext::cli('rod@host'), new InvocationContext(actor: 'actor:rod', verified: false, channel: 'web')] as $context) {
+        foreach ([null, InvocationContext::cli('operator@example.com'), new InvocationContext(actor: 'actor:rod', verified: false, channel: 'web')] as $context) {
             $answer = $runner->run($this->operations['graph:decide'], ['graph' => 'essay:review', 'instance' => $instance, 'decision' => 'abandon', 'principal' => 'rod'], 'cli', $context);
 
             self::assertFalse($answer['ok'] ?? true, (string) json_encode($answer));
